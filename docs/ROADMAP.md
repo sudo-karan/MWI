@@ -55,8 +55,14 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
   via `DeviceInfoProvider`, served over the encrypted API
 - ✅ **Files (read)**: `mounts`, `files` (list), `fileInfo` via `FileService` — every path is
   **OS-canonicalized then sandbox-checked** (`PathSandbox`) before access
-- ⬜ Files (write): `/upload`, `/upload_chunk`, `/zip`, `deleteFiles`/`createDir`/`rename`/`copy`/`move`,
-  `/fs` streaming with byte-range + thumbnails
+- ✅ **Files (write)**: `deleteFiles`/`createDir`/`renameFile`/`copyFile`/`moveFile`/`writeTextFile`
+  operations (sandboxed, atomic text write)
+- ✅ **`GET /fs`** byte-range streaming (PartialContent) with `dl=1` download disposition;
+  **`GET /zip/dir`** + **`GET /zip/files`** (Semaphore(1), streamed); **`POST /upload`** (streamed to
+  a temp sibling then atomically renamed) — all authorized by the rotating opaque **urlToken**
+  (constant-time) and path-sandboxed
+- ⬜ `/upload_chunk` + `mergeChunks`/`uploadedChunks` (resumable chunked upload); thumbnails,
+  HEIF→PNG, 3gp→MP4, `content://`/`pkgicon://` sources
 - ⬜ Media: `images`/`videos`/`audios` + counts/buckets, streaming
 
 ## Phase 3 — First domains: Files, Media, Device ⬜
