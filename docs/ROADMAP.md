@@ -40,10 +40,24 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
   verifies, replies encrypted; 2FA holds the socket until on-device approval (2-min timeout). The
   Web Console screen shows the login password and **approve/reject** cards for pending logins.
 - 🟡 `POST /init` (basic response in place) — cached-token pairing path to come
-- ⬜ Registered event socket (session-token registration + WS event fan-out) — lands with domains
-- ⬜ `ReplayGuard` wired into token-mode request bodies (lands with GraphQL/domain routes)
-- ⬜ GraphQL wired (vendored kGraphQL fork); introspection debug-only + 15s timeout
+- ✅ **Encrypted request pipeline** (`ApiPipeline`, unit-tested): token-mode body decrypt →
+  `ReplayGuard` (window+nonce) → operation dispatch → re-encrypted response; generic error codes
+- ✅ **Authenticated `POST /graphql` route**: `c-id` → `DSession` lookup → session-token decrypt →
+  pipeline → encrypted response
+- 🟡 Operation dispatch is a pragmatic name+variables **`ApiRegistry`** (spec's vendored kGraphQL
+  fork is a documented later item; we control both ends of the contract until the SPA is built)
+- ⬜ Registered event socket (session-token registration + WS event fan-out) — lands with more domains
 - ⬜ Per-call "404 for all but /health when web disabled" gating; CORS dynamic private-origin policy
+
+## Phase 3 — First domains: Files, Media, Device 🟡
+
+- ✅ **Device**: `deviceInfo` (model/OS/ABIs/storage/memory) + `battery` (level/charging/temp/health)
+  via `DeviceInfoProvider`, served over the encrypted API
+- ✅ **Files (read)**: `mounts`, `files` (list), `fileInfo` via `FileService` — every path is
+  **OS-canonicalized then sandbox-checked** (`PathSandbox`) before access
+- ⬜ Files (write): `/upload`, `/upload_chunk`, `/zip`, `deleteFiles`/`createDir`/`rename`/`copy`/`move`,
+  `/fs` streaming with byte-range + thumbnails
+- ⬜ Media: `images`/`videos`/`audios` + counts/buckets, streaming
 
 ## Phase 3 — First domains: Files, Media, Device ⬜
 
