@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Component declarations (services/receivers) are added in later build phases
+         as their implementation classes land. Permissions live in :app's manifest. -->
+</manifest>
