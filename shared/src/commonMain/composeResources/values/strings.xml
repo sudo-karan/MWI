@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  In-app UI strings (Compose Resources / i18n). The build fails on duplicate keys, so keep each
+  key unique. Additional locales live under composeResources/values-<lang>/strings.xml.
+-->
+<resources>
+    <string name="app_name">MWI</string>
+    <string name="app_tagline">Your phone, on your network — private by design.</string>
+
+    <string name="home_title">MWI</string>
+    <string name="web_console_status_off">Web console is off</string>
+    <string name="web_console_status_on">Web console is on</string>
+    <string name="start_web_console">Start web console</string>
+    <string name="stop_web_console">Stop web console</string>
+    <string name="back">Back</string>
+    <string name="coming_soon">Coming soon</string>
+    <string name="feature_not_wired">This feature is scaffolded and will light up in a later build phase.</string>
+    <string name="web_open_in_browser">Open this address in a browser on the same Wi‑Fi:</string>
+    <string name="web_offline_hint">Not connected to a Wi‑Fi network.</string>
+    <string name="web_console_hint">Starts a password‑protected, end‑to‑end‑encrypted console on your local network. Nothing leaves your LAN.</string>
+    <string name="web_starting">Starting…</string>
+
+    <!-- Feature grid labels (spec §7A) -->
+    <string name="feature_web_console">Web Console</string>
+    <string name="feature_files">Files</string>
+    <string name="feature_photos">Photos</string>
+    <string name="feature_videos">Videos</string>
+    <string name="feature_audio">Audio</string>
+    <string name="feature_contacts">Contacts</string>
+    <string name="feature_messages">Messages</string>
+    <string name="feature_calls">Calls</string>
+    <string name="feature_apps">Apps</string>
+    <string name="feature_notifications">Notifications</string>
+    <string name="feature_screen_mirror">Screen Mirror</string>
+    <string name="feature_notes">Notes</string>
+    <string name="feature_rss">RSS Reader</string>
+    <string name="feature_chat">P2P Chat</string>
+    <string name="feature_nearby">Nearby Devices</string>
+    <string name="feature_cast">TV Cast</string>
+    <string name="feature_dlna">DLNA Receiver</string>
+    <string name="feature_sound_meter">Sound Meter</string>
+    <string name="feature_pomodoro">Pomodoro</string>
+    <string name="feature_qr">QR Scanner</string>
+    <string name="feature_documents">Documents</string>
+    <string name="feature_app_files">App Files</string>
+    <string name="feature_bookmarks">Bookmarks</string>
+    <string name="feature_tags">Tags</string>
+    <string name="feature_device_info">Device Info</string>
+    <string name="feature_developer">Developer</string>
+    <string name="feature_settings">Settings</string>
+</resources>

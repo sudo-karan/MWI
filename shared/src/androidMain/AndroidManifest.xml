@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <!-- Embedded web server foreground service (spec §8/§9). -->
+        <service
+            android:name="com.ismartcoding.plain.webserver.HttpServerService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse|dataSync">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Local LAN web console for managing this device from a browser" />
+        </service>
+
+        <!-- Additional services (Audio / ScreenMirror / Accessibility / NotificationListener /
+             QSTile) and the token-guarded start/stop receiver are declared as later phases land. -->
+    </application>
+</manifest>

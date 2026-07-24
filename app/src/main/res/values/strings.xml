@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android-manifest-facing name. In-app UI strings come from Compose Resources (i18n). -->
+    <string name="app_name">MWI</string>
+</resources>
