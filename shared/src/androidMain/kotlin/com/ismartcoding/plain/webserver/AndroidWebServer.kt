@@ -1,5 +1,7 @@
 package com.ismartcoding.plain.webserver
 
+import com.ismartcoding.plain.web.auth.AuthManager
+import com.ismartcoding.plain.web.auth.PendingApproval
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
@@ -11,19 +13,43 @@ object AndroidWebServer {
     val running = MutableStateFlow(false)
     val sslPort = MutableStateFlow(-1)
 
+    /** The login password to type in the browser (machine-generated, shown on-device). */
+    val loginPassword = MutableStateFlow<String?>(null)
+
+    /** Logins awaiting on-device 2FA approval. */
+    val pendingApprovals = MutableStateFlow<List<PendingApproval>>(emptyList())
+
     @Volatile
     var manager: HttpServerManager? = null
         private set
+
+    private val authManager: AuthManager? get() = manager?.authManager
 
     fun onStarted(m: HttpServerManager) {
         manager = m
         sslPort.value = m.sslPort
         running.value = m.isRunning
+        refreshApprovals()
     }
 
     fun onStopped() {
         manager = null
         sslPort.value = -1
         running.value = false
+        pendingApprovals.value = emptyList()
+    }
+
+    fun refreshApprovals() {
+        pendingApprovals.value = authManager?.pendingApprovals() ?: emptyList()
+    }
+
+    fun approve(approvalId: String) {
+        authManager?.approve(approvalId)
+        refreshApprovals()
+    }
+
+    fun reject(approvalId: String) {
+        authManager?.reject(approvalId)
+        refreshApprovals()
     }
 }

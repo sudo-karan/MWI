@@ -19,6 +19,10 @@
     <string name="web_offline_hint">Not connected to a Wi‑Fi network.</string>
     <string name="web_console_hint">Starts a password‑protected, end‑to‑end‑encrypted console on your local network. Nothing leaves your LAN.</string>
     <string name="web_starting">Starting…</string>
+    <string name="web_login_password">Password (type this in the browser)</string>
+    <string name="web_pending_login">A browser is trying to sign in</string>
+    <string name="approve">Approve</string>
+    <string name="reject">Reject</string>
 
     <!-- Feature grid labels (spec §7A) -->
     <string name="feature_web_console">Web Console</string>
