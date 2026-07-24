@@ -33,9 +33,15 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
 - ✅ HTTP `/health`, `/shutdown` (loopback-only), SPA served from the classpath with `__SERVER_TIME__`
   injection + `X-Server-Time`
 - ✅ **Web Console screen wired end-to-end**: start/stop the server from the app, shows the LAN URL
-- 🟡 `POST /init` (basic response in place) — full handshake to come
-- ⬜ Full handshake: WS auth frame, 2FA pending + on-device approval, session-token mint, `DSession`
-  persistence; `ReplayGuard` wired into token-mode request bodies
+- ✅ **Auth core** (`AuthManager`, unit-tested): constant-time password verify, on-device 2FA
+  pending-approvals with await/approve/reject, session-token mint, `DSession` persistence via
+  `RoomAuthStore` (Room + DataStore login password)
+- ✅ **WS login handshake wired**: browser sends `XChaCha20(SHA-512(pw)[..32], AuthRequest)`; server
+  verifies, replies encrypted; 2FA holds the socket until on-device approval (2-min timeout). The
+  Web Console screen shows the login password and **approve/reject** cards for pending logins.
+- 🟡 `POST /init` (basic response in place) — cached-token pairing path to come
+- ⬜ Registered event socket (session-token registration + WS event fan-out) — lands with domains
+- ⬜ `ReplayGuard` wired into token-mode request bodies (lands with GraphQL/domain routes)
 - ⬜ GraphQL wired (vendored kGraphQL fork); introspection debug-only + 15s timeout
 - ⬜ Per-call "404 for all but /health when web disabled" gating; CORS dynamic private-origin policy
 

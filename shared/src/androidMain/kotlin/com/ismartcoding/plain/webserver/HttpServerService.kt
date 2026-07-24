@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import com.ismartcoding.plain.crypto.AuthTokens
 import com.ismartcoding.plain.crypto.Crypto
 import com.ismartcoding.plain.preferences.AppPreferences
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +37,14 @@ class HttpServerService : Service() {
 
     private suspend fun startServer() {
         if (manager != null) return
+        // Provision the machine-generated web-console login password once, and publish it so the UI
+        // can show what to type in the browser.
+        val loginPassword = AppPreferences.getLoginPassword() ?: Crypto.randomPassword(16).also {
+            AppPreferences.setLoginPassword(it)
+            AppPreferences.setPasswordHash(AuthTokens.passwordHash(it))
+        }
+        AndroidWebServer.loginPassword.value = loginPassword
+
         // Keystore password: persisted, or generated once with the CSPRNG and stored.
         val password = (AppPreferences.getKeystorePassword() ?: Crypto.randomPassword(24)
             .also { AppPreferences.setKeystorePassword(it) }).toCharArray()

@@ -1,5 +1,14 @@
 package com.ismartcoding.plain.webserver
 
+import com.ismartcoding.plain.crypto.AuthTokens
+import com.ismartcoding.plain.crypto.Crypto
+import com.ismartcoding.plain.crypto.DecryptResult
+import com.ismartcoding.plain.db.AppDb
+import com.ismartcoding.plain.preferences.AppPreferences
+import com.ismartcoding.plain.web.AuthRequest
+import com.ismartcoding.plain.web.AuthResponse
+import com.ismartcoding.plain.web.AuthStatus
+import com.ismartcoding.plain.web.auth.AuthManager
 import com.ismartcoding.plain.web.security.RateLimiter
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -35,8 +44,13 @@ import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readBytes
+import io.ktor.websocket.send
 import java.net.ServerSocket
 import java.security.KeyStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.Json
 
 /**
  * The embedded MWI web server (spec §6): Ktor on Netty, HTTP :8080 + SSL :8443 with fallback pools,
@@ -64,6 +78,14 @@ class HttpServerManager(
         private set
 
     private val loginRateLimiter = RateLimiter()
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+    /** The web-console auth state machine (spec §5). Exposed so the UI can approve/reject 2FA logins. */
+    val authManager: AuthManager = AuthManager(
+        store = RoomAuthStore(AppDb.instance),
+        twoFactorEnabled = { runBlocking(Dispatchers.IO) { AppPreferences.isTwoFactorEnabled() } },
+    )
+
     private var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null
 
     private val httpPool = listOf(8080) + (8180..8980 step 100).toList()
@@ -180,17 +202,88 @@ class HttpServerManager(
     }
 
     private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.handleSocket() {
-        // Auth handshake + event fan-out are implemented in the auth/domain phases. For now the
-        // endpoint is live so the connection contract is exercisable; unauthenticated sockets are
-        // closed. The real peer is available via call.request.origin.remoteHost for rate limiting.
+        val cid = call.request.queryParameters["cid"] ?: ""
+        val isAuth = call.request.queryParameters["auth"] == "1"
+        if (isAuth) doAuthHandshake(cid) else keepAlive()
+    }
+
+    /**
+     * WS login (spec §5 steps 2–3): the browser sends `XChaCha20(handshakeToken, AuthRequest)` where
+     * handshakeToken = SHA-512(loginPassword)[..32]. We decrypt with the same derivation, verify,
+     * and reply `XChaCha20(handshakeToken, AuthResponse)`. When 2FA is on we hold the socket until
+     * the on-device approval resolves (or a 2-minute timeout).
+     */
+    private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.doAuthHandshake(cid: String) {
         val peer = call.request.origin.remoteHost
-        loginRateLimiter.tryAcquire(peer)
+        if (!loginRateLimiter.tryAcquire(peer)) {
+            close(CloseReason(CloseReason.Codes.TRY_AGAIN_LATER, "rate limited"))
+            return
+        }
+        val password = runBlocking(Dispatchers.IO) { AppPreferences.getLoginPassword() }
+        if (password == null) {
+            close(CloseReason(CloseReason.Codes.CANNOT_ACCEPT, "not provisioned"))
+            return
+        }
+        val token = AuthTokens.handshakeToken(password)
+
+        val first = incoming.receive()
+        if (first !is Frame.Binary) {
+            close(CloseReason(CloseReason.Codes.CANNOT_ACCEPT, "expected binary"))
+            return
+        }
+        val reqJson = when (val d = Crypto.decrypt(token, first.readBytes())) {
+            is DecryptResult.Success -> d.plaintext.decodeToString()
+            DecryptResult.Failure -> {
+                close(CloseReason(CloseReason.Codes.CANNOT_ACCEPT, "bad handshake"))
+                return
+            }
+        }
+        val request = runCatching { json.decodeFromString<AuthRequest>(reqJson) }.getOrNull()
+        if (request == null) {
+            close(CloseReason(CloseReason.Codes.CANNOT_ACCEPT, "bad request"))
+            return
+        }
+
+        when (val result = authManager.authenticate(cid, request)) {
+            is AuthManager.Result.Granted -> {
+                sendEncrypted(token, AuthResponse(AuthStatus.GRANTED.name, result.token, result.sessionId))
+            }
+            AuthManager.Result.Denied -> {
+                sendEncrypted(token, AuthResponse(AuthStatus.DENIED.name))
+                close(CloseReason(CloseReason.Codes.NORMAL, "denied"))
+            }
+            is AuthManager.Result.Pending -> {
+                sendEncrypted(token, AuthResponse(AuthStatus.PENDING.name, require2fa = true))
+                AndroidWebServer.refreshApprovals()
+                val granted = withTimeoutOrNull(2 * 60 * 1000L) {
+                    authManager.awaitApproval(result.approvalId)
+                }
+                AndroidWebServer.refreshApprovals()
+                if (granted != null) {
+                    sendEncrypted(token, AuthResponse(AuthStatus.GRANTED.name, granted.token, granted.sessionId))
+                } else {
+                    sendEncrypted(token, AuthResponse(AuthStatus.REJECTED.name))
+                    close(CloseReason(CloseReason.Codes.NORMAL, "rejected"))
+                }
+            }
+        }
+    }
+
+    private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.sendEncrypted(
+        token: ByteArray,
+        response: AuthResponse,
+    ) {
+        send(Frame.Binary(true, Crypto.encrypt(token, json.encodeToString(response).encodeToByteArray())))
+    }
+
+    /**
+     * Registered event socket (spec §5 step 4). Full session-token registration + event fan-out land
+     * with the domain phases; for now the socket is held open so the connection contract is live.
+     */
+    private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.keepAlive() {
         try {
             for (frame in incoming) {
-                if (frame is Frame.Binary) {
-                    // Decoding requires the negotiated session token (auth phase). Ignore for now.
-                    frame.readBytes()
-                }
+                if (frame is Frame.Binary) frame.readBytes()
             }
         } finally {
             close(CloseReason(CloseReason.Codes.NORMAL, "bye"))

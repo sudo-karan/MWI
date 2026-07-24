@@ -22,6 +22,7 @@ object AppPreferences {
     private val store: DataStore<Preferences> by lazy { createPreferencesDataStore() }
 
     private val PASSWORD_HASH = stringPreferencesKey("password_hash")
+    private val LOGIN_PASSWORD = stringPreferencesKey("login_password")
     private val URL_TOKEN = stringPreferencesKey("url_token")
     private val KEYSTORE_PASSWORD = stringPreferencesKey("keystore_password")
     private val TWO_FACTOR = booleanPreferencesKey("two_factor_enabled")
@@ -32,6 +33,14 @@ object AppPreferences {
 
     suspend fun getPasswordHash(): String? = store.data.map { it[PASSWORD_HASH] }.first()
     suspend fun setPasswordHash(value: String) = edit { it[PASSWORD_HASH] = value }
+
+    /**
+     * The web-console login password. It is a machine-generated, high-entropy secret shown on the
+     * device (never a user-chosen/reused one), stored locally on a device with `allowBackup=false`.
+     * The plaintext is required to derive the WS handshake key (SHA-512(password)[..32], spec §5).
+     */
+    suspend fun getLoginPassword(): String? = store.data.map { it[LOGIN_PASSWORD] }.first()
+    suspend fun setLoginPassword(value: String) = edit { it[LOGIN_PASSWORD] = value }
 
     suspend fun getUrlToken(): String? = store.data.map { it[URL_TOKEN] }.first()
     suspend fun setUrlToken(value: String) = edit { it[URL_TOKEN] = value }

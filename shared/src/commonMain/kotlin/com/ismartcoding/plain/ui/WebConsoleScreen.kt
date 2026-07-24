@@ -2,6 +2,7 @@ package com.ismartcoding.plain.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -31,15 +32,19 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ismartcoding.plain.resources.Res
+import com.ismartcoding.plain.resources.approve
 import com.ismartcoding.plain.resources.back
 import com.ismartcoding.plain.resources.feature_web_console
+import com.ismartcoding.plain.resources.reject
 import com.ismartcoding.plain.resources.start_web_console
 import com.ismartcoding.plain.resources.stop_web_console
 import com.ismartcoding.plain.resources.web_console_hint
 import com.ismartcoding.plain.resources.web_console_status_off
 import com.ismartcoding.plain.resources.web_console_status_on
+import com.ismartcoding.plain.resources.web_login_password
 import com.ismartcoding.plain.resources.web_offline_hint
 import com.ismartcoding.plain.resources.web_open_in_browser
+import com.ismartcoding.plain.resources.web_pending_login
 import com.ismartcoding.plain.resources.web_starting
 import com.ismartcoding.plain.web.WebServerController
 import org.jetbrains.compose.resources.stringResource
@@ -53,6 +58,8 @@ import org.jetbrains.compose.resources.stringResource
 fun WebConsoleScreen(onBack: () -> Unit) {
     val running by WebServerController.running.collectAsState()
     val port by WebServerController.sslPort.collectAsState()
+    val password by WebServerController.loginPassword.collectAsState()
+    val approvals by WebServerController.pendingApprovals.collectAsState()
     val lanIp = remember(running) { WebServerController.lanAddress() }
 
     Scaffold(
@@ -100,6 +107,19 @@ fun WebConsoleScreen(onBack: () -> Unit) {
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.primary,
                         )
+                        password?.let { pw ->
+                            Text(
+                                text = stringResource(Res.string.web_login_password),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = pw,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
                     } else {
                         Text(stringResource(Res.string.web_console_hint), style = MaterialTheme.typography.bodyMedium)
                     }
@@ -119,6 +139,35 @@ fun WebConsoleScreen(onBack: () -> Unit) {
                 Button(onClick = { WebServerController.start() }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
                     Text(stringResource(Res.string.start_web_console))
+                }
+            }
+
+            // On-device 2FA: approve/reject browser logins (spec §5).
+            approvals.forEach { approval ->
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(Res.string.web_pending_login), fontWeight = FontWeight.SemiBold)
+                        val who = listOf(approval.browserName, approval.osName)
+                            .filter { it.isNotBlank() }.joinToString(" · ")
+                        if (who.isNotBlank()) {
+                            Text(who, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = { WebServerController.approve(approval.id) },
+                                modifier = Modifier.weight(1f),
+                            ) { Text(stringResource(Res.string.approve)) }
+                            Button(
+                                onClick = { WebServerController.reject(approval.id) },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                modifier = Modifier.weight(1f),
+                            ) { Text(stringResource(Res.string.reject)) }
+                        }
+                    }
                 }
             }
         }
