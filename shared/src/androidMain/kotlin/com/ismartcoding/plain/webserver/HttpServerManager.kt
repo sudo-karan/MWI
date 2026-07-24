@@ -37,12 +37,21 @@ import io.ktor.server.plugins.partialcontent.PartialContent
 import io.ktor.server.request.header
 import io.ktor.server.request.path
 import io.ktor.server.request.receive
+import io.ktor.server.request.receiveStream
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondBytes
+import io.ktor.server.response.respondFile
+import io.ktor.server.response.respondOutputStream
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
+import com.ismartcoding.plain.features.file.FileService
+import com.ismartcoding.plain.web.file.FilePaths
+import java.io.File
+import java.util.concurrent.Semaphore
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import io.ktor.server.websocket.WebSockets
 import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.CloseReason
@@ -94,6 +103,9 @@ class HttpServerManager(
     private val apiPipeline = ApiPipeline()
     private val apiRegistry = AndroidApiRegistry.build()
 
+    // Zip generation is memory/CPU heavy; serialize it (spec §6: Semaphore(1)).
+    private val zipSemaphore = Semaphore(1)
+
     private var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null
 
     private val httpPool = listOf(8080) + (8180..8980 step 100).toList()
@@ -105,6 +117,8 @@ class HttpServerManager(
         val ssl = firstFreePort(sslPool) ?: return false
         httpPort = http
         sslPort = ssl
+        // Rotate the opaque file-URL token on each start (spec §5).
+        AndroidWebServer.urlToken = AuthTokens.newUrlToken()
 
         server = embeddedServer(
             factory = Netty,
@@ -178,6 +192,13 @@ class HttpServerManager(
             // Authenticated, encrypted API endpoint (token mode, spec §5/§6).
             post("/graphql") { handleApi() }
 
+            // File serving (spec §6). Authorized by the opaque server urlToken (constant-time),
+            // then path-sandboxed. PartialContent handles Range for byte-range streaming.
+            get("/fs") { handleFs() }
+            get("/zip/dir") { handleZipDir() }
+            get("/zip/files") { handleZipFiles() }
+            post("/upload") { handleUpload() }
+
             // SPA index with server-time injection (spec §6).
             get("/") { serveIndex() }
             get("/index.html") { serveIndex() }
@@ -195,6 +216,93 @@ class HttpServerManager(
     private fun io.ktor.server.routing.Route.intercept404WhenDisabled() {
         // Placeholder guard hook; real per-call gating is added with the auth layer. Kept explicit
         // so the "404 for all but /health when disabled" contract has a home.
+    }
+
+    // ---------------------------------------------------------------- file routes
+
+    /** Constant-time check that the request carries the current server urlToken. */
+    private fun io.ktor.server.routing.RoutingContext.validUrlToken(): Boolean {
+        val provided = call.request.queryParameters["token"] ?: return false
+        val expected = AndroidWebServer.urlToken ?: return false
+        return Crypto.constantTimeEquals(provided.encodeToByteArray(), expected.encodeToByteArray())
+    }
+
+    private suspend fun io.ktor.server.routing.RoutingContext.handleFs() {
+        if (!validUrlToken()) return call.respond(HttpStatusCode.Unauthorized)
+        val path = call.request.queryParameters["path"] ?: return call.respond(HttpStatusCode.BadRequest)
+        val file = runCatching { FileService.existingFile(path) }.getOrNull()
+        if (file == null || !file.isFile) return call.respond(HttpStatusCode.NotFound)
+        if (call.request.queryParameters["dl"] == "1") {
+            call.response.headers.append(
+                HttpHeaders.ContentDisposition,
+                "attachment; filename=\"${FilePaths.sanitizeDownloadName(file.name)}\"",
+            )
+        }
+        call.respondFile(file) // PartialContent adds Range/Accept-Ranges automatically
+    }
+
+    private suspend fun io.ktor.server.routing.RoutingContext.handleZipDir() {
+        if (!validUrlToken()) return call.respond(HttpStatusCode.Unauthorized)
+        val path = call.request.queryParameters["path"] ?: return call.respond(HttpStatusCode.BadRequest)
+        val dir = runCatching { FileService.existingFile(path) }.getOrNull()
+        if (dir == null || !dir.isDirectory) return call.respond(HttpStatusCode.NotFound)
+        if (!zipSemaphore.tryAcquire()) return call.respond(HttpStatusCode.TooManyRequests)
+        try {
+            call.response.headers.append(
+                HttpHeaders.ContentDisposition,
+                "attachment; filename=\"${FilePaths.sanitizeDownloadName(dir.name)}.zip\"",
+            )
+            call.respondOutputStream(ContentType.Application.Zip) {
+                ZipOutputStream(this).use { zos ->
+                    dir.walkTopDown().filter { it.isFile }.forEach { f ->
+                        zos.putNextEntry(ZipEntry(FilePaths.zipEntryName(dir.absolutePath, f.absolutePath)))
+                        f.inputStream().use { it.copyTo(zos) }
+                        zos.closeEntry()
+                    }
+                }
+            }
+        } finally {
+            zipSemaphore.release()
+        }
+    }
+
+    private suspend fun io.ktor.server.routing.RoutingContext.handleZipFiles() {
+        if (!validUrlToken()) return call.respond(HttpStatusCode.Unauthorized)
+        val paths = call.request.queryParameters.getAll("path").orEmpty()
+        if (paths.isEmpty()) return call.respond(HttpStatusCode.BadRequest)
+        val files = paths.mapNotNull { p -> runCatching { FileService.existingFile(p) }.getOrNull() }
+            .filter { it.isFile }
+        if (files.isEmpty()) return call.respond(HttpStatusCode.NotFound)
+        if (!zipSemaphore.tryAcquire()) return call.respond(HttpStatusCode.TooManyRequests)
+        try {
+            call.response.headers.append(HttpHeaders.ContentDisposition, "attachment; filename=\"files.zip\"")
+            call.respondOutputStream(ContentType.Application.Zip) {
+                ZipOutputStream(this).use { zos ->
+                    files.forEach { f ->
+                        zos.putNextEntry(ZipEntry(FilePaths.sanitizeDownloadName(f.name)))
+                        f.inputStream().use { it.copyTo(zos) }
+                        zos.closeEntry()
+                    }
+                }
+            }
+        } finally {
+            zipSemaphore.release()
+        }
+    }
+
+    private suspend fun io.ktor.server.routing.RoutingContext.handleUpload() {
+        if (!validUrlToken()) return call.respond(HttpStatusCode.Unauthorized)
+        val path = call.request.queryParameters["path"] ?: return call.respond(HttpStatusCode.BadRequest)
+        val target = runCatching { FileService.writableFile(path) }.getOrNull()
+            ?: return call.respond(HttpStatusCode.Forbidden)
+        // Stream to a temp sibling, then rename over the target (atomic).
+        val tmp = File(target.parentFile, "${target.name}.upload")
+        call.receiveStream().use { input -> tmp.outputStream().use { input.copyTo(it) } }
+        if (!tmp.renameTo(target)) {
+            tmp.copyTo(target, overwrite = true)
+            tmp.delete()
+        }
+        call.respondText("ok", ContentType.Text.Plain)
     }
 
     /**

@@ -19,6 +19,14 @@ object AndroidWebServer {
     /** Logins awaiting on-device 2FA approval. */
     val pendingApprovals = MutableStateFlow<List<PendingApproval>>(emptyList())
 
+    /**
+     * Server-wide opaque token embedded in `/fs`, `/zip`, `/upload` URLs (spec §5). Rotates on each
+     * server start. Only clients that have authenticated learn it (via the `urlToken` operation).
+     */
+    @Volatile
+    var urlToken: String? = null
+        internal set
+
     @Volatile
     var manager: HttpServerManager? = null
         private set

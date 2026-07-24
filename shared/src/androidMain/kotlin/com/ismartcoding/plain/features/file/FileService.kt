@@ -42,6 +42,73 @@ object FileService {
         return if (f.exists()) f.toDFile() else null
     }
 
+    // ------------------------------------------------------------------ write ops
+
+    /** Delete files/dirs (recursively). Returns the number of top-level paths removed. */
+    fun deleteFiles(paths: List<String>): Int =
+        paths.count { File(sandboxed(it)).deleteRecursively() }
+
+    /** Create a directory (and parents). Returns the created path. */
+    fun createDir(path: String): String {
+        val dir = File(sandboxed(path))
+        if (!dir.exists() && !dir.mkdirs()) throw IllegalStateException("mkdir failed")
+        return dir.absolutePath
+    }
+
+    /** Rename a file/dir in place. [newName] is a bare name (separators are rejected). */
+    fun renameFile(path: String, newName: String): String {
+        require(!newName.contains('/') && !newName.contains('\\') && newName.isNotBlank()) { "invalid name" }
+        val src = File(sandboxed(path))
+        val target = File(sandboxed(File(src.parentFile, newName).path))
+        if (!src.renameTo(target)) throw IllegalStateException("rename failed")
+        return target.absolutePath
+    }
+
+    fun copyFile(src: String, dst: String): String {
+        val from = File(sandboxed(src))
+        val to = File(sandboxed(dst))
+        from.copyRecursively(to, overwrite = false)
+        return to.absolutePath
+    }
+
+    fun moveFile(src: String, dst: String): String {
+        val from = File(sandboxed(src))
+        val to = File(sandboxed(dst))
+        if (!from.renameTo(to)) {
+            from.copyRecursively(to, overwrite = false)
+            from.deleteRecursively()
+        }
+        return to.absolutePath
+    }
+
+    /** Write text to a file atomically (temp sibling + rename). */
+    fun writeTextFile(path: String, content: String): String {
+        val target = File(sandboxed(path))
+        target.parentFile?.mkdirs()
+        val tmp = File(target.parentFile, "${target.name}.tmp-${content.length}")
+        tmp.writeText(content)
+        if (!tmp.renameTo(target)) {
+            tmp.copyTo(target, overwrite = true)
+            tmp.delete()
+        }
+        return target.absolutePath
+    }
+
+    // ------------------------------------------------------ sandboxed resolvers (routes)
+
+    /** A sandboxed [File] that must already exist (for `/fs` reads / `/zip`); null if missing. */
+    fun existingFile(path: String): File? {
+        val f = File(sandboxed(path))
+        return if (f.exists()) f else null
+    }
+
+    /** A sandboxed [File] for writing (parent created); the file itself need not exist yet. */
+    fun writableFile(path: String): File {
+        val f = File(sandboxed(path))
+        f.parentFile?.mkdirs()
+        return f
+    }
+
     /** Canonicalize then enforce the sandbox; returns the safe canonical path or throws. */
     private fun sandboxed(path: String): String {
         val canonical = File(path).canonicalPath
