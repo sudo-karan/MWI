@@ -8,6 +8,7 @@ import com.ismartcoding.plain.preferences.AppPreferences
 import com.ismartcoding.plain.web.AuthRequest
 import com.ismartcoding.plain.web.AuthResponse
 import com.ismartcoding.plain.web.AuthStatus
+import com.ismartcoding.plain.web.api.ApiPipeline
 import com.ismartcoding.plain.web.auth.AuthManager
 import com.ismartcoding.plain.web.security.RateLimiter
 import io.ktor.http.ContentType
@@ -33,10 +34,14 @@ import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.plugins.origin
 import io.ktor.server.plugins.partialcontent.PartialContent
+import io.ktor.server.request.header
 import io.ktor.server.request.path
+import io.ktor.server.request.receive
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
+import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import io.ktor.server.websocket.WebSockets
 import io.ktor.server.websocket.webSocket
@@ -85,6 +90,9 @@ class HttpServerManager(
         store = RoomAuthStore(AppDb.instance),
         twoFactorEnabled = { runBlocking(Dispatchers.IO) { AppPreferences.isTwoFactorEnabled() } },
     )
+
+    private val apiPipeline = ApiPipeline()
+    private val apiRegistry = AndroidApiRegistry.build()
 
     private var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null
 
@@ -167,6 +175,9 @@ class HttpServerManager(
                 }
             }
 
+            // Authenticated, encrypted API endpoint (token mode, spec §5/§6).
+            post("/graphql") { handleApi() }
+
             // SPA index with server-time injection (spec §6).
             get("/") { serveIndex() }
             get("/index.html") { serveIndex() }
@@ -184,6 +195,33 @@ class HttpServerManager(
     private fun io.ktor.server.routing.Route.intercept404WhenDisabled() {
         // Placeholder guard hook; real per-call gating is added with the auth layer. Kept explicit
         // so the "404 for all but /health when disabled" contract has a home.
+    }
+
+    /**
+     * Token-mode API request (spec §5): `c-id` identifies the session; the body is
+     * `XChaCha20(sessionToken, "TIMESTAMP|NONCE|{operation,variables}")`. We look up the session,
+     * decrypt+replay-check+dispatch via [ApiPipeline], and return the re-encrypted response.
+     */
+    private suspend fun io.ktor.server.routing.RoutingContext.handleApi() {
+        val cid = call.request.header("c-id")
+        if (cid.isNullOrEmpty()) {
+            call.respond(HttpStatusCode.Unauthorized)
+            return
+        }
+        val session = runBlocking(Dispatchers.IO) { AppDb.instance.sessionDao().getByClientId(cid) }
+        if (session == null || session.token.isEmpty()) {
+            call.respond(HttpStatusCode.Unauthorized)
+            return
+        }
+        val token = AuthTokens.unhex(session.token)
+        val ciphertext = call.receive<ByteArray>()
+        val response = apiPipeline.processEncrypted(token, ciphertext) { req -> apiRegistry.dispatch(req) }
+        if (response == null) {
+            // Body failed to authenticate/decrypt.
+            call.respond(HttpStatusCode.Unauthorized)
+            return
+        }
+        call.respondBytes(response, ContentType.Application.OctetStream)
     }
 
     private suspend fun io.ktor.server.routing.RoutingContext.serveIndex() {
