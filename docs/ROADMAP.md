@@ -63,7 +63,11 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
   (constant-time) and path-sandboxed
 - ⬜ `/upload_chunk` + `mergeChunks`/`uploadedChunks` (resumable chunked upload); thumbnails,
   HEIF→PNG, 3gp→MP4, `content://`/`pkgicon://` sources
-- ⬜ Media: `images`/`videos`/`audios` + counts/buckets, streaming
+- ✅ **Media**: `images`/`videos`/`audios` (+ `imageCount`/`videoCount`/`audioCount`) and
+  `mediaBuckets` via `MediaProvider` (MediaStore, index-guarded across API 28–36, Bundle pagination
+  on API 30+); items expose `path` for streaming/thumbnails through `/fs`. Pagination clamped by the
+  unit-tested `MediaQuery`.
+- ⬜ Media playback control (`playAudio`, playlist ops), AI image search, trash/restore
 
 ## Phase 3 — First domains: Files, Media, Device ⬜
 
