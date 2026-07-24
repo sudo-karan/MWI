@@ -15,6 +15,10 @@
     <string name="back">Back</string>
     <string name="coming_soon">Coming soon</string>
     <string name="feature_not_wired">This feature is scaffolded and will light up in a later build phase.</string>
+    <string name="web_open_in_browser">Open this address in a browser on the same Wi‑Fi:</string>
+    <string name="web_offline_hint">Not connected to a Wi‑Fi network.</string>
+    <string name="web_console_hint">Starts a password‑protected, end‑to‑end‑encrypted console on your local network. Nothing leaves your LAN.</string>
+    <string name="web_starting">Starting…</string>
 
     <!-- Feature grid labels (spec §7A) -->
     <string name="feature_web_console">Web Console</string>

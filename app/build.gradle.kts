@@ -80,8 +80,21 @@ android {
                 "/META-INF/{AL2.0,LGPL2.1}",
                 "/META-INF/versions/9/OSGI-INF/MANIFEST.MF",
                 "/META-INF/INDEX.LIST",
+                "/META-INF/DEPENDENCIES",
+                "/META-INF/LICENSE*",
+                "/META-INF/NOTICE*",
                 "/META-INF/*.kotlin_module",
-                "META-INF/DEPENDENCIES",
+                "META-INF/native-image/**",
+                "**/*.proto",
+            )
+            // Netty ships identical META-INF entries in ~17 modules; keep the first.
+            pickFirsts += setOf(
+                "META-INF/io.netty.versions.properties",
+                "META-INF/INDEX.LIST",
+                "google/protobuf/**",
+            )
+            merges += setOf(
+                "META-INF/services/**",
             )
         }
     }

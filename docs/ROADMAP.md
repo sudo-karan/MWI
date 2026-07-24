@@ -19,16 +19,25 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
 - ✅ Unit tests for the crypto core and replay guard (run on the JVM)
 - ✅ README, PRIVACY.md, TOOLCHAIN.md, ARCHITECTURE.md, keep rules, CI workflow
 
-## Phase 2 — Web server core + auth ⬜
+## Phase 2 — Web server core + auth 🟡
 
-- ⬜ Ktor/Netty `EmbeddedServer` as a foreground service (HTTP :8080 + SSL :8443, fallback pools)
-- ⬜ TLS self-signed X.509 in a BKS keystore (BouncyCastle; atomic write; regen on corruption)
-- ⬜ Handshake: `POST /init`, WS auth, 2FA pending + on-device approval, session-token mint
-- ⬜ `ReplayGuard` wired into token-mode requests; login rate limiting (5/min per-peer + 20/min global)
-- ⬜ CORS allowlist, path sandbox, SSRF guard
+- ✅ Ktor/Netty `EmbeddedServer` as a foreground service (`HttpServerService`), HTTP + SSL with
+  fallback port pools (8080… / 8443…), `runningLimit` 1000, all plugins installed (WebSockets,
+  Compression, ContentNegotiation/json, Caching/Conditional headers, CORS, PartialContent,
+  AutoHeadResponse)
+- ✅ TLS self-signed X.509 in a BKS keystore (`TlsKeystore`, BouncyCastle; atomic write; regen on
+  corruption; SHA-256 fingerprint for TOFU)
+- ✅ `RateLimiter` (5/min per real peer + 20/min global), `PathSandbox`, `SsrfGuard` — all unit-tested
+- ✅ WebSocket frame codec `[4-byte type] + XChaCha20(payload)` + `TokenEnvelope` parser + event
+  types + auth models — all unit-tested
+- ✅ HTTP `/health`, `/shutdown` (loopback-only), SPA served from the classpath with `__SERVER_TIME__`
+  injection + `X-Server-Time`
+- ✅ **Web Console screen wired end-to-end**: start/stop the server from the app, shows the LAN URL
+- 🟡 `POST /init` (basic response in place) — full handshake to come
+- ⬜ Full handshake: WS auth frame, 2FA pending + on-device approval, session-token mint, `DSession`
+  persistence; `ReplayGuard` wired into token-mode request bodies
 - ⬜ GraphQL wired (vendored kGraphQL fork); introspection debug-only + 15s timeout
-- ⬜ HTTP `/health`, `/shutdown` (loopback); WebSocket `[4-byte type] + XChaCha20(payload)` framing
-- ⬜ Serve the placeholder SPA from the classpath with `__SERVER_TIME__` / `X-Server-Time`
+- ⬜ Per-call "404 for all but /health when web disabled" gating; CORS dynamic private-origin policy
 
 ## Phase 3 — First domains: Files, Media, Device ⬜
 

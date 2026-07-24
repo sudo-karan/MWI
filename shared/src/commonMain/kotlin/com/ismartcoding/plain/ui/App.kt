@@ -41,10 +41,10 @@ fun App() {
         Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
             var selected: Feature? by remember { mutableStateOf(null) }
             val current = selected
-            if (current == null) {
-                HomeScreen(onFeatureClick = { selected = it })
-            } else {
-                FeaturePlaceholder(feature = current, onBack = { selected = null })
+            when {
+                current == null -> HomeScreen(onFeatureClick = { selected = it })
+                current.id == "web_console" -> WebConsoleScreen(onBack = { selected = null })
+                else -> FeaturePlaceholder(feature = current, onBack = { selected = null })
             }
         }
     }
