@@ -3,9 +3,12 @@ package com.ismartcoding.plain.webserver
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import com.ismartcoding.plain.features.app.AppsProvider
+import com.ismartcoding.plain.features.call.CallsProvider
 import com.ismartcoding.plain.features.contact.ContactsProvider
 import com.ismartcoding.plain.features.device.DeviceInfoProvider
 import com.ismartcoding.plain.features.file.FileService
+import com.ismartcoding.plain.features.notification.MwiNotificationListenerService
 import com.ismartcoding.plain.features.media.MediaProvider
 import com.ismartcoding.plain.features.media.MediaType
 import com.ismartcoding.plain.features.sms.SimProvider
@@ -70,6 +73,26 @@ object AndroidApiRegistry {
         .register("smsConversationCount") { io { JsonPrimitive(SmsProvider.conversationCount()) } }
         .register("sendSms") { v -> io { JsonPrimitive(SmsProvider.sendSms(v.str("address"), v.str("body"), v.optInt("subId") ?: -1)) } }
         .register("sims") { io { json.encodeToJsonElement(SimProvider.sims()) } }
+        // Calls
+        .register("calls") { v -> io { json.encodeToJsonElement(CallsProvider.calls(MediaQuery.clampOffset(v.optInt("offset")), MediaQuery.clampLimit(v.optInt("limit")))) } }
+        .register("callCount") { io { JsonPrimitive(CallsProvider.count()) } }
+        .register("callState") { io { json.encodeToJsonElement(CallsProvider.state()) } }
+        .register("call") { v -> io { JsonPrimitive(CallsProvider.call(v.str("number"))) } }
+        .register("deleteCalls") { v -> io { JsonPrimitive(CallsProvider.deleteCalls(v.strList("ids"))) } }
+        .register("answerCall") { io { JsonPrimitive(CallsProvider.answerCall()) } }
+        .register("endCall") { io { JsonPrimitive(CallsProvider.endCall()) } }
+        .register("setCallSpeaker") { v -> io { JsonPrimitive(CallsProvider.setSpeaker(v.optBool("on"))) } }
+        // Apps
+        .register("packages") { v -> io { json.encodeToJsonElement(AppsProvider.packages(MediaQuery.clampOffset(v.optInt("offset")), MediaQuery.clampLimit(v.optInt("limit")))) } }
+        .register("packageCount") { io { JsonPrimitive(AppsProvider.count()) } }
+        .register("app") { v -> io { json.encodeToJsonElement(AppsProvider.app(v.str("packageName"))) } }
+        .register("uninstallPackages") { v -> io { JsonPrimitive(v.strList("packageNames").count { AppsProvider.uninstall(it) }) } }
+        .register("relaunchApp") { v -> io { JsonPrimitive(AppsProvider.launch(v.str("packageName"))) } }
+        .register("openAccessibilitySettings") { io { JsonPrimitive(AppsProvider.openAccessibilitySettings()) } }
+        // Notifications
+        .register("notifications") { io { json.encodeToJsonElement(MwiNotificationListenerService.list()) } }
+        .register("cancelNotifications") { v -> io { JsonPrimitive(MwiNotificationListenerService.cancel(v.strList("keys"))) } }
+        .register("replyNotification") { v -> io { JsonPrimitive(MwiNotificationListenerService.replyTo(v.str("key"), v.str("text"))) } }
         // Device/App mutations (also demonstrate the WS event fan-out)
         .register("updateDeviceName") { v ->
             val name = v.str("name")
@@ -114,4 +137,7 @@ object AndroidApiRegistry {
 
     private fun JsonObject?.optInt(key: String): Int? =
         this?.get(key)?.jsonPrimitive?.content?.toIntOrNull()
+
+    private fun JsonObject?.optBool(key: String): Boolean =
+        this?.get(key)?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
 }
