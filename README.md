@@ -13,12 +13,19 @@ password-authenticated and end-to-end encrypted (TLS plus an app-layer XChaCha20
 MWI is a rebrand of / built on the open-source [PlainApp](https://github.com/ismartcoding/plain-app);
 the `applicationId`/namespace stays `com.ismartcoding.plain`.
 
-> **Status — actively bootstrapping.** This repository is being built up in the phased order
-> described in [`docs/ROADMAP.md`](docs/ROADMAP.md). **Phase 1 (Foundation)** is in place and
-> builds: the KMP skeleton, the Compose app shell + home feature grid, the Room data model,
-> DataStore preferences, and — most importantly — the **security/crypto core** with a runnable
-> test suite. Later phases (web server + auth, then the domain features) light up the grid tile by
-> tile. See the roadmap for exactly what is done vs. scaffolded.
+> **Status — Android app broadly feature-complete; web SPA pending.** Built up in the phased order
+> in [`docs/ROADMAP.md`](docs/ROADMAP.md). Done and building: the KMP foundation + **security/crypto
+> core** (tested), the **Ktor/TLS web server** with login + **on-device 2FA**, the **encrypted +
+> replay-protected API** and **WS event push**, and domain backends for **Files, Media, Device,
+> Contacts, SMS, Calls, Apps, Notifications, Notes/RSS/Bookmarks/Tags/Pomodoro, Screen Mirror,
+> Nearby (mDNS), and DLNA**. The standalone app has **real in-app screens for 26 of 27 home-grid
+> tiles**, a Quick Settings tile, and i18n scaffolding (English + Spanish/French started). Every
+> commit builds an installable APK and keeps a green unit-test suite (60 tests).
+>
+> **Still pending:** the browser **dashboard SPA** (currently a placeholder page — the largest
+> remaining piece), the DLNA receiver / BLE·Wi-Fi-Aware peer transports, optional AI image search,
+> the rest of the ~18 locales, and release hardening. See the roadmap for the exact done/pending
+> breakdown.
 
 ---
 
