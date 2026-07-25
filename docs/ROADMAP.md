@@ -78,9 +78,17 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
 - ⬜ Media (images/videos/audios + counts/buckets, streaming)
 - ⬜ Device (deviceInfo/battery/app + clipboard/relaunch/updateDeviceName)
 
-## Phases 4–9 ⬜
+## Phase 4 — Comms 🟡
 
-4. Comms — Contacts, SMS/MMS, Calls (+control), Notifications (+reply), Apps
+- ✅ **Contacts**: `contacts` (paged, phones+emails batched to avoid N+1), `contactCount`,
+  `contactSources`, `contactGroups`, `deleteContacts` via `ContactsProvider`. Phone numbers
+  normalized by the unit-tested `PhoneNumbers`.
+- ⬜ Contacts create/update; SMS/MMS (conversations, send, multi-SIM); Calls (log + control);
+  Notifications (mirror + reply); Apps (list/(un)install)
+
+## Phases 5–9 ⬜
+
+4. Comms (cont.) — SMS/MMS, Calls (+control), Notifications (+reply), Apps
 5. Screen mirror — MediaProjection + MediaCodec + WS + Accessibility control + keyboard
 6. Standalone tools — Notes, RSS, players, QR, Pomodoro, Sound Meter, tags, browsers, settings
 7. P2P + casting — BLE / Wi-Fi Aware, peer chat/channels/pairing, DLNA, mDNS
