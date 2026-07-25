@@ -114,10 +114,12 @@
   }
 
   async function afterLogin() {
-    // Fetch the file-URL token once so Files can build /fs download links.
+    // Fetch the file-URL token once so Files/Media can build /fs stream+download links. It is
+    // regenerated on each server start, so we always refresh it (a resumed session may be stale).
     try { state.urlToken = String(await api('urlToken')); store.urlToken = state.urlToken; }
     catch (e) { state.urlToken = store.urlToken; }
     renderShell();
+    startEvents();
   }
 
   // ---------------------------------------------------------------- app shell
@@ -125,6 +127,10 @@
   const NAV = [
     { id: 'device', label: 'Device', ico: '📱' },
     { id: 'files', label: 'Files', ico: '🗂️' },
+    { id: 'media', label: 'Media', ico: '🖼️' },
+    { id: 'contacts', label: 'Contacts', ico: '👤' },
+    { id: 'messages', label: 'Messages', ico: '💬' },
+    { id: 'calls', label: 'Calls', ico: '📞' },
     { id: 'notes', label: 'Notes', ico: '📝' },
     { id: 'apps', label: 'Apps', ico: '📦' },
   ];
@@ -135,7 +141,7 @@
       el('button', {
         class: 'nav-item' + (n.id === state.view ? ' active' : ''),
         'data-id': n.id,
-        onclick: () => { state.view = n.id; refreshNav(); renderView(contentEl); },
+        onclick: () => { state.view = n.id; resetSubnav(); refreshNav(); renderView(contentEl); },
       }, [ el('span', { class: 'ico', text: n.ico }), el('span', { class: 'label', text: n.label }) ])));
 
     const shell = el('div', { class: 'shell' }, [
@@ -157,7 +163,11 @@
     }
   }
 
+  // Reset per-section drill-down state so a sidebar click opens the section at its top level.
+  function resetSubnav() { files.stack = []; messages.thread = null; }
+
   function logout() {
+    stopEvents();
     state.token = null; store.token = null;
     renderLogin();
   }
@@ -187,6 +197,10 @@
       let node;
       if (state.view === 'device') node = await viewDevice();
       else if (state.view === 'files') node = await viewFiles();
+      else if (state.view === 'media') node = await viewMedia();
+      else if (state.view === 'contacts') node = await viewContacts();
+      else if (state.view === 'messages') node = await viewMessages();
+      else if (state.view === 'calls') node = await viewCalls();
       else if (state.view === 'notes') node = await viewNotes();
       else if (state.view === 'apps') node = await viewApps();
       else node = el('div', { class: 'empty', text: 'Nothing here.' });
@@ -395,6 +409,206 @@
     return wrap;
   }
 
+  // ---------------------------------------------------------------- Media view
+
+  const media = { tab: 'IMAGE' };
+  const MEDIA_TABS = [
+    { key: 'IMAGE', label: 'Photos', op: 'images', count: 'imageCount' },
+    { key: 'VIDEO', label: 'Videos', op: 'videos', count: 'videoCount' },
+    { key: 'AUDIO', label: 'Audio', op: 'audios', count: 'audioCount' },
+  ];
+
+  async function viewMedia() {
+    const wrap = el('div', {});
+    const tabs = el('div', { class: 'actions' }, MEDIA_TABS.map((t) =>
+      el('button', {
+        class: 'btn small' + (t.key === media.tab ? ' primary' : ''),
+        text: t.label,
+        onclick: () => { media.tab = t.key; renderView($('#content')); },
+      })));
+    wrap.appendChild(el('div', { class: 'page-head' }, [el('h2', { text: 'Media' }), tabs]));
+
+    if (!state.urlToken) { wrap.appendChild(el('div', { class: 'err-box', text: 'No file token available — reconnect to enable media streaming.' })); return wrap; }
+    const spec = MEDIA_TABS.find((t) => t.key === media.tab);
+    const items = await api(spec.op, { limit: 120, offset: 0 });
+    if (!items || !items.length) { wrap.appendChild(el('div', { class: 'empty', text: 'Nothing in this library.' })); return wrap; }
+
+    if (media.tab === 'AUDIO') { wrap.appendChild(audioList(items)); return wrap; }
+    wrap.appendChild(mediaGrid(items, media.tab === 'VIDEO'));
+    return wrap;
+  }
+
+  function mediaGrid(items, isVideo) {
+    return el('div', { class: 'media-grid' }, items.map((m) => {
+      const src = Api.fsUrl(state.urlToken, m.path, false);
+      const tile = el('a', { class: 'tile', href: src, target: '_blank', rel: 'noopener', title: m.title });
+      if (isVideo) {
+        tile.classList.add('video');
+        tile.appendChild(el('div', { class: 'play', text: '▶' }));
+        tile.appendChild(el('div', { class: 'cap', text: (m.duration ? fmtDuration(m.duration) : '') }));
+      } else {
+        tile.appendChild(el('img', { loading: 'lazy', src: src, alt: m.title }));
+      }
+      return tile;
+    }));
+  }
+
+  function audioList(items) {
+    return el('div', { class: 'list' }, items.map((m) =>
+      el('div', { class: 'row' }, [
+        el('div', { class: 'ico', text: '🎵' }),
+        el('div', { class: 'main' }, [
+          el('div', { class: 'name', text: m.title }),
+          el('div', { class: 'sub', text: fmtBytes(m.size) + (m.duration ? ' · ' + fmtDuration(m.duration) : '') }),
+        ]),
+        el('audio', { controls: 'controls', preload: 'none', src: Api.fsUrl(state.urlToken, m.path, false), style: 'max-width:230px;height:34px' }),
+      ])));
+  }
+
+  function fmtDuration(ms) {
+    const s = Math.round(Number(ms) / 1000);
+    const m = Math.floor(s / 60), sec = s % 60;
+    if (m >= 60) { const h = Math.floor(m / 60); return h + ':' + String(m % 60).padStart(2, '0') + ':' + String(sec).padStart(2, '0'); }
+    return m + ':' + String(sec).padStart(2, '0');
+  }
+
+  // ---------------------------------------------------------------- Contacts view
+
+  async function viewContacts() {
+    const wrap = el('div', {});
+    const [count, contacts] = await Promise.all([
+      api('contactCount').catch(() => null),
+      api('contacts', { limit: 500, offset: 0 }),
+    ]);
+    wrap.appendChild(pageHead('Contacts', count != null ? [el('span', { class: 'hint', text: count + ' contacts' })] : []));
+    if (!contacts || !contacts.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No contacts (or permission not granted in the app).' })); return wrap; }
+    const list = el('div', { class: 'list' }, contacts.map((c) => {
+      const phone = (c.phones && c.phones[0] && c.phones[0].value) || (c.emails && c.emails[0] && c.emails[0].value) || '';
+      return el('div', { class: 'row' }, [
+        el('div', { class: 'avatar', text: initials(c.displayName) }),
+        el('div', { class: 'main' }, [
+          el('div', { class: 'name', text: (c.starred ? '★ ' : '') + (c.displayName || '(no name)') }),
+          el('div', { class: 'sub', text: phone }),
+        ]),
+        el('div', { class: 'trail', text: (c.phones && c.phones.length > 1) ? ('+' + (c.phones.length - 1) + ' more') : '' }),
+      ]);
+    }));
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  function initials(name) {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    return ((parts[0] ? parts[0][0] : '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+  }
+
+  // ---------------------------------------------------------------- Messages (SMS) view
+
+  const messages = { thread: null }; // { threadId, address }
+
+  async function viewMessages() {
+    const wrap = el('div', {});
+    if (messages.thread) return viewSmsThread(wrap);
+    const convos = await api('smsConversations', { limit: 200, offset: 0 });
+    wrap.appendChild(pageHead('Messages'));
+    if (!convos || !convos.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No conversations (or SMS permission not granted).' })); return wrap; }
+    const list = el('div', { class: 'list' }, convos.map((c) =>
+      el('div', {
+        class: 'row clickable',
+        onclick: () => { messages.thread = { threadId: c.threadId, address: c.address }; renderView($('#content')); },
+      }, [
+        el('div', { class: 'avatar', text: initials(c.address) }),
+        el('div', { class: 'main' }, [
+          el('div', { class: 'name', text: c.address || '(unknown)' }),
+          el('div', { class: 'sub', text: c.snippet || '' }),
+        ]),
+        el('div', { class: 'trail' }, [
+          el('div', { text: shortDate(c.date) }),
+          c.unreadCount ? el('div', { class: 'badge', text: String(c.unreadCount) }) : el('span'),
+        ]),
+      ])));
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  async function viewSmsThread(wrap) {
+    const t = messages.thread;
+    wrap.appendChild(el('div', { class: 'page-head' }, [
+      el('button', { class: 'btn small', text: '‹ Back', onclick: () => { messages.thread = null; renderView($('#content')); } }),
+      el('h2', { text: t.address || 'Conversation', style: 'font-size:1.1rem' }),
+    ]));
+    const msgs = await api('sms', { threadId: t.threadId, limit: 300, offset: 0 });
+    if (!msgs || !msgs.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No messages.' })); return wrap; }
+    const ordered = msgs.slice().sort((a, b) => Number(a.date) - Number(b.date));
+    const thread = el('div', { class: 'thread' }, ordered.map((m) => {
+      const mine = m.type === 'sent' || m.type === 'outbox' || m.type === 'queued';
+      return el('div', { class: 'bubble ' + (mine ? 'me' : 'them') }, [
+        el('div', { class: 'txt', text: m.body || '' }),
+        el('div', { class: 'stamp', text: fmtDate(m.date) }),
+      ]);
+    }));
+    wrap.appendChild(thread);
+    return wrap;
+  }
+
+  // ---------------------------------------------------------------- Calls view
+
+  const CALL_ICONS = { incoming: '📥', outgoing: '📤', missed: '⚠️', rejected: '⛔', blocked: '🚫', voicemail: '📩' };
+
+  async function viewCalls() {
+    const wrap = el('div', {});
+    const [count, calls] = await Promise.all([
+      api('callCount').catch(() => null),
+      api('calls', { limit: 300, offset: 0 }),
+    ]);
+    wrap.appendChild(pageHead('Calls', count != null ? [el('span', { class: 'hint', text: count + ' calls' })] : []));
+    if (!calls || !calls.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No call log (or permission not granted).' })); return wrap; }
+    const list = el('div', { class: 'list' }, calls.map((c) =>
+      el('div', { class: 'row' }, [
+        el('div', { class: 'ico', text: CALL_ICONS[c.type] || '📞' }),
+        el('div', { class: 'main' }, [
+          el('div', { class: 'name', text: c.name || c.number || '(unknown)' }),
+          el('div', { class: 'sub', text: (c.name ? c.number + ' · ' : '') + c.type + (c.duration ? ' · ' + fmtDuration(Number(c.duration) * 1000) : '') }),
+        ]),
+        el('div', { class: 'trail', text: shortDate(c.date) }),
+      ])));
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  function shortDate(ms) {
+    if (!ms) return '';
+    try {
+      const d = new Date(Number(ms)); const now = new Date();
+      const sameDay = d.toDateString() === now.toDateString();
+      return sameDay ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString();
+    } catch (e) { return ''; }
+  }
+
+  // ---------------------------------------------------------------- live events
+
+  let eventSocket = null;
+  // Which views should refresh when a given event code arrives.
+  const EVENT_VIEWS = {
+    100: ['messages'], 101: ['messages'], 102: ['messages'], // MESSAGE_*
+    1200: ['device'],                                        // DEVICE_NAME_UPDATED
+    1500: ['calls'],                                         // CALL_STATE_CHANGED
+  };
+  function startEvents() {
+    if (!state.token) return;
+    try {
+      eventSocket = Api.events(state.token, function (type) {
+        const views = EVENT_VIEWS[type];
+        if (views && views.indexOf(state.view) !== -1) {
+          const host = $('#content');
+          if (host) renderView(host);
+        }
+      });
+    } catch (e) { /* events are best-effort; the app works without them */ }
+  }
+  function stopEvents() { try { if (eventSocket) eventSocket.close(); } catch (e) {} eventSocket = null; }
+
   // ---------------------------------------------------------------- bootstrap
 
   function mount(node) {
@@ -409,7 +623,7 @@
       state.token = saved;
       state.urlToken = store.urlToken;
       // Validate the resumed session with a cheap call; fall back to login on failure.
-      try { await api('deviceInfo'); renderShell(); return; }
+      try { await api('deviceInfo'); await afterLogin(); return; }
       catch (e) { state.token = null; store.token = null; }
     }
     renderLogin();
