@@ -105,7 +105,11 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
   editor + delete), **Files** (browser), **Photos** (Coil grid), **Contacts**, **Calls**, **Messages**,
   **Apps** — wired to the home grid via an `expect/actual FeatureScreen` seam (a generic
   load-then-list scaffold backs the viewers). Remaining tiles fall back to the placeholder.
-- ⬜ RSS fetch/sync (network + readability), Notes/Docs export, screens for the remaining tiles
+- ✅ **RSS/Feeds, Bookmarks, Tags, Pomodoro** screens (CRUD over the DAOs via a shared
+  `CrudListScreen` scaffold with an add dialog) and a real **Settings** screen (DataStore: 2FA
+  toggle, device name, web-console on/off). **14 of ~28 tiles** now open real in-app screens.
+- ⬜ RSS fetch/sync (network + readability), Notes/Docs export, remaining tile screens
+  (audio/video players, QR, sound meter, chat, nearby, dev tools)
 
 ## Phase 5 — Screen mirror 🟡
 
