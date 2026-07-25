@@ -143,6 +143,7 @@ button { font: inherit; }
 .row .sub { font-size: .78rem; color: var(--text-muted); }
 .row .trail { font-size: .8rem; color: var(--text-muted); white-space: nowrap; }
 .row.clickable { cursor: pointer; }
+.list.drop { outline: 2px dashed var(--accent); outline-offset: -2px; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
 
 .crumbs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 14px; font-size: .88rem; }
 .crumbs button { background: none; border: none; color: var(--accent); cursor: pointer; padding: 2px 4px; font: inherit; }
