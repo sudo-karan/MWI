@@ -13,7 +13,17 @@
                 android:value="Local LAN web console for managing this device from a browser" />
         </service>
 
-        <!-- Additional services (Audio / ScreenMirror / Accessibility / NotificationListener /
-             QSTile) and the token-guarded start/stop receiver are declared as later phases land. -->
+        <!-- Notification mirroring (user-granted binding). -->
+        <service
+            android:name="com.ismartcoding.plain.features.notification.MwiNotificationListenerService"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Additional services (Audio / ScreenMirror / Accessibility / QSTile) and the
+             token-guarded start/stop receiver are declared as later phases land. -->
     </application>
 </manifest>

@@ -86,8 +86,13 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
 - ✅ **SMS**: `sms` (paged, per-thread), `smsCount`, `smsConversations` (grouped latest-per-thread),
   `smsConversationCount`, `sendSms` (multi-SIM via `SmsManager.createForSubscriptionId`, multipart),
   `sims` (active subscriptions). SMS type mapping via the unit-tested `SmsFormat`.
-- ⬜ Contacts create/update; MMS send + attachments; Calls (log + control); Notifications
-  (mirror + reply); Apps (list/(un)install)
+- ✅ **Calls**: `calls` (log, paged), `callCount`, `callState`, `call` (place), `deleteCalls`,
+  `answerCall`/`endCall` (TelecomManager), `setCallSpeaker`. Type mapping via unit-tested `CallFormat`.
+- ✅ **Apps**: `packages` (paged), `packageCount`, `app` (details), `uninstallPackages`,
+  `relaunchApp`, `openAccessibilitySettings` via `AppsProvider`.
+- ✅ **Notifications**: `notifications` (mirror), `cancelNotifications`, `replyNotification` (inline
+  RemoteInput) via `MwiNotificationListenerService`; posts/removals push a `NOTIFICATION` WS event.
+- ⬜ Contacts create/update; MMS send + attachments; live `CALL_STATE_CHANGED` push (TelephonyCallback)
 
 ## Phases 5–9 ⬜
 
