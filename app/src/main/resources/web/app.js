@@ -26,6 +26,67 @@
     return n;
   };
 
+  // ---------------- toasts & modal dialogs (themed replacements for alert/prompt/confirm) ----------
+
+  function toast(message, kind) {
+    let wrap = document.getElementById('toast-wrap');
+    if (!wrap) { wrap = el('div', { id: 'toast-wrap', class: 'toast-wrap' }); document.body.appendChild(wrap); }
+    const t = el('div', { class: 'toast' + (kind === 'error' ? ' error' : kind === 'ok' ? ' ok' : ''), text: message });
+    wrap.appendChild(t);
+    setTimeout(() => t.classList.add('show'), 10);
+    setTimeout(() => { t.classList.remove('show'); setTimeout(() => { if (t.parentNode) t.parentNode.removeChild(t); }, 250); }, kind === 'error' ? 4500 : 2600);
+  }
+
+  function modal(build) {
+    return new Promise((resolve) => {
+      const backdrop = el('div', { class: 'modal-backdrop' });
+      const card = el('div', { class: 'modal' });
+      backdrop.appendChild(card);
+      let done = false;
+      function close(val) { if (done) return; done = true; document.removeEventListener('keydown', esc); backdrop.classList.remove('show'); setTimeout(() => { if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop); }, 200); resolve(val); }
+      function esc(e) { if (e.key === 'Escape') close(null); }
+      backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(null); });
+      document.addEventListener('keydown', esc);
+      build(card, close);
+      document.body.appendChild(backdrop);
+      setTimeout(() => backdrop.classList.add('show'), 10);
+    });
+  }
+
+  /** Prompt for one or more fields. fields: [{name,label,type?,placeholder?,value?}]. Resolves values|null. */
+  function askDialog(opts) {
+    return modal((card, close) => {
+      card.appendChild(el('h3', { text: opts.title || 'Enter' }));
+      const inputs = {};
+      (opts.fields || []).forEach((f) => {
+        const input = el('input', { class: 'input', type: f.type || 'text', placeholder: f.placeholder || '', value: f.value || '' });
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+        inputs[f.name] = input;
+        card.appendChild(el('div', { class: 'field' }, [f.label ? el('label', { text: f.label }) : el('span'), input]));
+      });
+      function submit() { const out = {}; Object.keys(inputs).forEach((k) => { out[k] = inputs[k].value; }); close(out); }
+      card.appendChild(el('div', { class: 'modal-actions' }, [
+        el('button', { class: 'btn', text: 'Cancel', onclick: () => close(null) }),
+        el('button', { class: 'btn primary', text: opts.submitText || 'OK', onclick: submit }),
+      ]));
+      const firstKey = opts.fields && opts.fields[0] && opts.fields[0].name;
+      if (firstKey) setTimeout(() => inputs[firstKey].focus(), 40);
+    });
+  }
+
+  function askText(title, value) { return askDialog({ title: title, fields: [{ name: 'value', value: value || '' }] }).then((r) => (r ? r.value : null)); }
+
+  function confirmDialog(message, danger) {
+    return modal((card, close) => {
+      card.appendChild(el('h3', { text: 'Confirm' }));
+      card.appendChild(el('p', { class: 'hint', style: 'margin:0 0 4px', text: message }));
+      card.appendChild(el('div', { class: 'modal-actions' }, [
+        el('button', { class: 'btn', text: 'Cancel', onclick: () => close(false) }),
+        el('button', { class: 'btn ' + (danger ? 'danger' : 'primary'), text: danger ? 'Delete' : 'OK', onclick: () => close(true) }),
+      ]));
+    });
+  }
+
   const store = {
     get token() { try { return sessionStorage.getItem('mwi.token'); } catch (e) { return null; } },
     set token(v) { try { v ? sessionStorage.setItem('mwi.token', v) : sessionStorage.removeItem('mwi.token'); } catch (e) {} },
@@ -339,8 +400,8 @@
     const picker = el('input', { type: 'file', multiple: 'multiple', style: 'display:none' });
     picker.addEventListener('change', () => { uploadFiles(cur, picker.files); });
     actions.appendChild(el('button', { class: 'btn small', text: '+ Folder', onclick: async () => {
-      const n = prompt('New folder name');
-      if (n) { try { await api('createDir', { path: joinPath(cur.path, n) }); renderView($('#content')); } catch (e) { alert(e.message); } }
+      const n = await askText('New folder');
+      if (n) { try { await api('createDir', { path: joinPath(cur.path, n) }); renderView($('#content')); } catch (e) { toast(e.message, 'error'); } }
     } }));
     actions.appendChild(el('button', { class: 'btn small', text: '⬆ Upload', onclick: () => picker.click() }));
     actions.appendChild(picker);
@@ -359,18 +420,18 @@
     }
     box.appendChild(el('button', { class: 'btn small', text: 'Rename', onclick: async (ev) => {
       ev.stopPropagation();
-      const nn = prompt('Rename to', f.name);
-      if (nn && nn !== f.name) { try { await api('renameFile', { path: f.path, newName: nn }); renderView($('#content')); } catch (e) { alert(e.message); } }
+      const nn = await askText('Rename', f.name);
+      if (nn && nn !== f.name) { try { await api('renameFile', { path: f.path, newName: nn }); renderView($('#content')); } catch (e) { toast(e.message, 'error'); } }
     } }));
     box.appendChild(el('button', { class: 'btn small danger', text: 'Delete', onclick: async (ev) => {
       ev.stopPropagation();
-      if (confirm('Delete "' + f.name + '"?')) { try { await api('deleteFiles', { paths: [f.path] }); renderView($('#content')); } catch (e) { alert(e.message); } }
+      if (await confirmDialog('Delete "' + f.name + '"?', true)) { try { await api('deleteFiles', { paths: [f.path] }); renderView($('#content')); } catch (e) { toast(e.message, 'error'); } }
     } }));
     return box;
   }
 
   async function uploadFiles(cur, fileList) {
-    if (!state.urlToken) { alert('No file token — reconnect.'); return; }
+    if (!state.urlToken) { toast('No file token — reconnect.', 'error'); return; }
     if (!fileList || !fileList.length) return;
     const host = $('#content');
     const bar = el('div', { class: 'hint', style: 'margin:6px 0' });
@@ -415,18 +476,18 @@
     const clearable = (list || []).filter((n) => n.clearable).map((n) => n.key);
     wrap.appendChild(pageHead('Notifications', clearable.length ? [
       el('button', { class: 'btn small', text: 'Dismiss all', onclick: async () => {
-        try { await api('cancelNotifications', { keys: clearable }); renderView($('#content')); } catch (e) { alert(e.message); }
+        try { await api('cancelNotifications', { keys: clearable }); renderView($('#content')); } catch (e) { toast(e.message, 'error'); }
       } }),
     ] : []));
     if (!list || !list.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No notifications (or the listener is not enabled in the app).' })); return wrap; }
     const rows = el('div', { class: 'list' }, list.map((n) => {
       const actions = el('div', { style: 'display:flex;gap:6px;margin-left:8px' });
       if (n.canReply) actions.appendChild(el('button', { class: 'btn small', text: 'Reply', onclick: async () => {
-        const t = prompt('Reply to ' + (n.title || n.packageName));
-        if (t) { try { await api('replyNotification', { key: n.key, text: t }); } catch (e) { alert(e.message); } }
+        const t = await askText('Reply to ' + (n.title || n.packageName));
+        if (t) { try { await api('replyNotification', { key: n.key, text: t }); toast('Reply sent', 'ok'); } catch (e) { toast(e.message, 'error'); } }
       } }));
       if (n.clearable) actions.appendChild(el('button', { class: 'btn small danger', text: '✕', title: 'Dismiss', onclick: async () => {
-        try { await api('cancelNotifications', { keys: [n.key] }); renderView($('#content')); } catch (e) { alert(e.message); }
+        try { await api('cancelNotifications', { keys: [n.key] }); renderView($('#content')); } catch (e) { toast(e.message, 'error'); }
       } }));
       return el('div', { class: 'row' }, [
         el('div', { class: 'ico', text: '📣' }),
@@ -448,7 +509,7 @@
     const wrap = el('div', {});
     const devices = await api('nearbyDevices');
     wrap.appendChild(pageHead('Nearby', [
-      el('button', { class: 'btn small', text: 'Scan', onclick: async () => { try { await api('startNearbyDiscovery'); setTimeout(() => renderView($('#content')), 1200); } catch (e) { alert(e.message); } } }),
+      el('button', { class: 'btn small', text: 'Scan', onclick: async () => { try { await api('startNearbyDiscovery'); setTimeout(() => renderView($('#content')), 1200); } catch (e) { toast(e.message, 'error'); } } }),
       el('button', { class: 'btn small', text: 'Stop', onclick: () => api('stopNearbyDiscovery').catch(() => {}) }),
     ]));
     wrap.appendChild(el('p', { class: 'hint', text: 'Discovers other MWI devices on the LAN via mDNS / DNS-SD.' }));
@@ -473,13 +534,15 @@
     const [groups, marks] = await Promise.all([api('bookmarkGroups'), api('bookmarks', {})]);
     wrap.appendChild(pageHead('Bookmarks', [
       el('button', { class: 'btn small', text: '+ Group', onclick: async () => {
-        const n = prompt('Group name');
-        if (n) { try { await api('createBookmarkGroup', { name: n }); renderView($('#content')); } catch (e) { alert(e.message); } }
+        const n = await askText('Group name');
+        if (n) { try { await api('createBookmarkGroup', { name: n }); renderView($('#content')); } catch (e) { toast(e.message, 'error'); } }
       } }),
       el('button', { class: 'btn small primary', text: '+ Bookmark', onclick: async () => {
-        const title = prompt('Title'); if (!title) return;
-        const url = prompt('URL (https://…)'); if (!url) return;
-        try { await api('createBookmark', { title: title, url: url }); renderView($('#content')); } catch (e) { alert(e.message); }
+        const r = await askDialog({ title: 'New bookmark', submitText: 'Add', fields: [
+          { name: 'title', label: 'Title' }, { name: 'url', label: 'URL', placeholder: 'https://…' },
+        ] });
+        if (!r || !r.title || !r.url) return;
+        try { await api('createBookmark', { title: r.title, url: r.url }); renderView($('#content')); } catch (e) { toast(e.message, 'error'); }
       } }),
     ]));
     const groupName = {}; (groups || []).forEach((g) => { groupName[g.id] = g.name; });
@@ -492,7 +555,7 @@
           el('div', { class: 'sub', text: (groupName[b.groupId] ? groupName[b.groupId] + ' · ' : '') + b.url }),
         ]),
         el('button', { class: 'btn small danger', text: 'Delete', onclick: async () => {
-          try { await api('deleteBookmark', { id: b.id }); renderView($('#content')); } catch (e) { alert(e.message); }
+          try { await api('deleteBookmark', { id: b.id }); renderView($('#content')); } catch (e) { toast(e.message, 'error'); }
         } }),
       ])));
     wrap.appendChild(list);
@@ -509,9 +572,11 @@
     const feeds = await api('feeds');
     wrap.appendChild(pageHead('Feeds', [
       el('button', { class: 'btn small primary', text: '+ Feed', onclick: async () => {
-        const url = prompt('Feed URL (RSS/Atom)'); if (!url) return;
-        const name = prompt('Name (optional)') || '';
-        try { await api('createFeed', { url: url, name: name }); renderView($('#content')); } catch (e) { alert(e.message); }
+        const r = await askDialog({ title: 'Subscribe to feed', submitText: 'Add', fields: [
+          { name: 'url', label: 'Feed URL', placeholder: 'RSS / Atom URL' }, { name: 'name', label: 'Name (optional)' },
+        ] });
+        if (!r || !r.url) return;
+        try { await api('createFeed', { url: r.url, name: r.name || '' }); renderView($('#content')); } catch (e) { toast(e.message, 'error'); }
       } }),
     ]));
     if (!feeds || !feeds.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No feeds. Add an RSS/Atom URL to subscribe.' })); return wrap; }
@@ -521,7 +586,7 @@
         el('div', { class: 'main' }, [ el('div', { class: 'name', text: f.name || f.url }), el('div', { class: 'sub', text: f.url }) ]),
         el('button', { class: 'btn small danger', text: 'Delete', onclick: async (ev) => {
           ev.stopPropagation();
-          try { await api('deleteFeed', { id: f.id }); renderView($('#content')); } catch (e) { alert(e.message); }
+          try { await api('deleteFeed', { id: f.id }); renderView($('#content')); } catch (e) { toast(e.message, 'error'); }
         } }),
       ])));
     wrap.appendChild(list);
@@ -574,7 +639,7 @@
           onclick: async (ev) => {
             ev.stopPropagation();
             try { await api('deleteNote', { id: n.id }); renderView($('#content')); }
-            catch (e) { alert('Delete failed: ' + e.message); }
+            catch (e) { toast('Delete failed: ' + e.message, 'error'); }
           },
         }),
       ]);
@@ -593,7 +658,7 @@
       if (!title.value && !body.value) return;
       save.disabled = true;
       try { await api('createNote', { title: title.value, content: body.value }); title.value = ''; body.value = ''; onSaved(); }
-      catch (e) { save.disabled = false; alert('Save failed: ' + e.message); }
+      catch (e) { save.disabled = false; toast('Save failed: ' + e.message, 'error'); }
     });
     return {
       node,
@@ -730,11 +795,11 @@
     const convos = await api('smsConversations', { limit: 200, offset: 0 });
     wrap.appendChild(pageHead('Messages', [
       el('button', { class: 'btn small', text: '+ New', onclick: async () => {
-        const addr = prompt('Send to (phone number)');
-        if (!addr) return;
-        const body = prompt('Message');
-        if (!body) return;
-        try { await api('sendSms', { address: addr, body: body }); renderView($('#content')); } catch (e) { alert('Send failed: ' + e.message); }
+        const r = await askDialog({ title: 'New message', submitText: 'Send', fields: [
+          { name: 'address', label: 'To (phone number)' }, { name: 'body', label: 'Message' },
+        ] });
+        if (!r || !r.address || !r.body) return;
+        try { await api('sendSms', { address: r.address, body: r.body }); renderView($('#content')); } catch (e) { toast('Send failed: ' + e.message, 'error'); }
       } }),
     ]));
     if (!convos || !convos.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No conversations (or SMS permission not granted).' })); return wrap; }
@@ -786,7 +851,7 @@
       if (!body) return;
       box.value = ''; send.disabled = true;
       try { await api('sendSms', { address: address, body: body }); renderView($('#content')); }
-      catch (e) { send.disabled = false; alert('Send failed: ' + e.message); }
+      catch (e) { send.disabled = false; toast('Send failed: ' + e.message, 'error'); }
     }
     send.addEventListener('click', doSend);
     box.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSend(); });
@@ -991,8 +1056,8 @@
     const channels = await api('chatChannels');
     wrap.appendChild(pageHead('Chat', [
       el('button', { class: 'btn small', text: '+ New channel', onclick: async function () {
-        const name = prompt('Channel name');
-        if (name) { try { await api('createChatChannel', { name: name }); renderView($('#content')); } catch (e) { alert(e.message); } }
+        const name = await askText('New channel');
+        if (name) { try { await api('createChatChannel', { name: name }); renderView($('#content')); } catch (e) { toast(e.message, 'error'); } }
       } }),
     ]));
     if (!channels || !channels.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No channels yet. Create one to start a local, on-device conversation.' })); return wrap; }
@@ -1002,7 +1067,7 @@
         el('div', { class: 'main' }, [ el('div', { class: 'name', text: c.name || '(unnamed)' }), el('div', { class: 'sub', text: 'Updated ' + fmtDate(c.updatedAt) }) ]),
         el('button', { class: 'btn small danger', text: 'Delete', onclick: async function (ev) {
           ev.stopPropagation();
-          try { await api('deleteChatChannel', { id: c.id }); renderView($('#content')); } catch (e) { alert(e.message); }
+          try { await api('deleteChatChannel', { id: c.id }); renderView($('#content')); } catch (e) { toast(e.message, 'error'); }
         } }),
       ]);
     }));
@@ -1033,7 +1098,7 @@
       if (!text) return;
       box.value = ''; send.disabled = true;
       try { await api('sendChat', { channelId: ch.id, text: text }); renderView($('#content')); }
-      catch (e) { send.disabled = false; alert(e.message); }
+      catch (e) { send.disabled = false; toast(e.message, 'error'); }
     }
     send.addEventListener('click', doSend);
     box.addEventListener('keydown', function (e) { if (e.key === 'Enter') doSend(); });
@@ -1054,7 +1119,7 @@
     const wrap = el('div', {});
     const renderers = await api('dlnaRenderers');
     wrap.appendChild(pageHead('Cast', [
-      el('button', { class: 'btn small', text: 'Scan', onclick: async function () { try { await api('startDlnaDiscovery'); setTimeout(function () { renderView($('#content')); }, 1500); } catch (e) { alert(e.message); } } }),
+      el('button', { class: 'btn small', text: 'Scan', onclick: async function () { try { await api('startDlnaDiscovery'); setTimeout(function () { renderView($('#content')); }, 1500); } catch (e) { toast(e.message, 'error'); } } }),
       el('button', { class: 'btn small', text: 'Stop scan', onclick: function () { api('stopDlnaDiscovery').catch(function () {}); } }),
     ]));
     wrap.appendChild(el('p', { class: 'hint', text: 'Discovers DLNA/UPnP renderers (smart TVs, receivers) on the LAN via SSDP. To cast, give a media URL the TV can fetch directly — note a self-signed HTTPS URL may be rejected by some TVs.' }));
@@ -1068,7 +1133,7 @@
           urlBox,
           el('button', { class: 'btn small primary', text: 'Cast', onclick: async function () {
             if (!urlBox.value) return;
-            try { await api('dlnaCast', { controlUrl: r.controlUrl, url: urlBox.value }); } catch (e) { alert(e.message); }
+            try { await api('dlnaCast', { controlUrl: r.controlUrl, url: urlBox.value }); } catch (e) { toast(e.message, 'error'); }
           } }),
           el('button', { class: 'btn small', text: 'Stop', onclick: function () { api('dlnaStop', { controlUrl: r.controlUrl }).catch(function () {}); } }),
         ]),
