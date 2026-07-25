@@ -3,7 +3,17 @@ package com.ismartcoding.plain.webserver
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import com.ismartcoding.plain.db.AppDb
+import com.ismartcoding.plain.db.DBookmark
+import com.ismartcoding.plain.db.DBookmarkGroup
+import com.ismartcoding.plain.db.DFeed
+import com.ismartcoding.plain.db.DNote
+import com.ismartcoding.plain.db.DPomodoroItem
+import com.ismartcoding.plain.db.DTag
+import com.ismartcoding.plain.db.DTagRelation
 import com.ismartcoding.plain.features.app.AppsProvider
+import com.ismartcoding.plain.platform.epochMillis
+import com.ismartcoding.plain.platform.newId
 import com.ismartcoding.plain.features.call.CallsProvider
 import com.ismartcoding.plain.features.contact.ContactsProvider
 import com.ismartcoding.plain.features.device.DeviceInfoProvider
@@ -34,6 +44,7 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 object AndroidApiRegistry {
     private val json = Json { encodeDefaults = true }
+    private val db get() = AppDb.instance
 
     fun build(): ApiRegistry = ApiRegistry()
         // Device
@@ -93,6 +104,81 @@ object AndroidApiRegistry {
         .register("notifications") { io { json.encodeToJsonElement(MwiNotificationListenerService.list()) } }
         .register("cancelNotifications") { v -> io { JsonPrimitive(MwiNotificationListenerService.cancel(v.strList("keys"))) } }
         .register("replyNotification") { v -> io { JsonPrimitive(MwiNotificationListenerService.replyTo(v.str("key"), v.str("text"))) } }
+        // ---- Standalone tools (Room-backed) ----
+        // Notes
+        .register("notes") { v -> json.encodeToJsonElement(db.noteDao().page(MediaQuery.clampLimit(v.optInt("limit")), MediaQuery.clampOffset(v.optInt("offset")))) }
+        .register("noteCount") { JsonPrimitive(db.noteDao().count()) }
+        .register("note") { v -> json.encodeToJsonElement(db.noteDao().getById(v.str("id"))) }
+        .register("createNote") { v ->
+            val now = epochMillis()
+            val note = DNote(id = newId(), title = v.optStr("title") ?: "", content = v.optStr("content") ?: "", createdAt = now, updatedAt = now)
+            db.noteDao().upsert(note)
+            json.encodeToJsonElement(note)
+        }
+        .register("updateNote") { v ->
+            val existing = db.noteDao().getById(v.str("id")) ?: throw IllegalArgumentException("not found")
+            val updated = existing.copy(title = v.optStr("title") ?: existing.title, content = v.optStr("content") ?: existing.content, updatedAt = epochMillis())
+            db.noteDao().upsert(updated)
+            json.encodeToJsonElement(updated)
+        }
+        .register("deleteNote") { v -> db.noteDao().deleteById(v.str("id")); JsonPrimitive(true) }
+        // Bookmarks
+        .register("bookmarkGroups") { json.encodeToJsonElement(db.bookmarkGroupDao().getAll()) }
+        .register("createBookmarkGroup") { v ->
+            val now = epochMillis()
+            val g = DBookmarkGroup(id = newId(), name = v.str("name"), createdAt = now, updatedAt = now)
+            db.bookmarkGroupDao().upsert(g); json.encodeToJsonElement(g)
+        }
+        .register("deleteBookmarkGroup") { v -> db.bookmarkGroupDao().deleteById(v.str("id")); JsonPrimitive(true) }
+        .register("bookmarks") { v ->
+            val groupId = v.optStr("groupId")
+            val list = if (groupId != null) db.bookmarkDao().getByGroup(groupId) else db.bookmarkDao().getAll()
+            json.encodeToJsonElement(list)
+        }
+        .register("createBookmark") { v ->
+            val now = epochMillis()
+            val b = DBookmark(id = newId(), groupId = v.optStr("groupId") ?: "", title = v.str("title"), url = v.str("url"), icon = v.optStr("icon") ?: "", createdAt = now, updatedAt = now)
+            db.bookmarkDao().upsert(b); json.encodeToJsonElement(b)
+        }
+        .register("deleteBookmark") { v -> db.bookmarkDao().deleteById(v.str("id")); JsonPrimitive(true) }
+        // Tags
+        .register("tags") { v -> json.encodeToJsonElement(db.tagDao().getByType(v.optInt("type") ?: 0)) }
+        .register("createTag") { v ->
+            val now = epochMillis()
+            val t = DTag(id = newId(), name = v.str("name"), type = v.optInt("type") ?: 0, createdAt = now, updatedAt = now)
+            db.tagDao().upsert(t); json.encodeToJsonElement(t)
+        }
+        .register("deleteTag") { v -> db.tagDao().deleteById(v.str("id")); JsonPrimitive(true) }
+        .register("tagRelations") { v -> json.encodeToJsonElement(db.tagRelationDao().getByTag(v.str("tagId"))) }
+        .register("addTagRelation") { v ->
+            val r = DTagRelation(id = newId(), tagId = v.str("tagId"), key = v.str("key"), type = v.optInt("type") ?: 0)
+            db.tagRelationDao().insert(r); json.encodeToJsonElement(r)
+        }
+        .register("deleteTagRelation") { v -> db.tagRelationDao().delete(v.str("tagId"), v.str("key")); JsonPrimitive(true) }
+        // Pomodoro
+        .register("pomodoros") { v -> json.encodeToJsonElement(db.pomodoroDao().recent(MediaQuery.clampLimit(v.optInt("limit")))) }
+        .register("createPomodoro") { v ->
+            val item = DPomodoroItem(id = newId(), durationSeconds = v.optInt("durationSeconds") ?: 0, kind = v.optInt("kind") ?: 0, startedAt = v.optInt("startedAt")?.toLong() ?: epochMillis(), completedAt = v.optInt("completedAt")?.toLong(), createdAt = epochMillis())
+            db.pomodoroDao().upsert(item); json.encodeToJsonElement(item)
+        }
+        // Feeds
+        .register("feeds") { json.encodeToJsonElement(db.feedDao().getAll()) }
+        .register("feedsCount") { JsonPrimitive(db.feedDao().count()) }
+        .register("feed") { v -> json.encodeToJsonElement(db.feedDao().getById(v.str("id"))) }
+        .register("createFeed") { v ->
+            val now = epochMillis()
+            val f = DFeed(id = newId(), url = v.str("url"), name = v.optStr("name") ?: "", fetchContent = v.optBool("fetchContent"), createdAt = now, updatedAt = now)
+            db.feedDao().upsert(f); json.encodeToJsonElement(f)
+        }
+        .register("updateFeed") { v ->
+            val existing = db.feedDao().getById(v.str("id")) ?: throw IllegalArgumentException("not found")
+            val updated = existing.copy(name = v.optStr("name") ?: existing.name, fetchContent = v.optBool("fetchContent"), updatedAt = epochMillis())
+            db.feedDao().upsert(updated); json.encodeToJsonElement(updated)
+        }
+        .register("deleteFeed") { v -> db.feedDao().deleteById(v.str("id")); JsonPrimitive(true) }
+        .register("feedEntries") { v -> json.encodeToJsonElement(db.feedEntryDao().getByFeed(v.str("feedId"), MediaQuery.clampLimit(v.optInt("limit")), MediaQuery.clampOffset(v.optInt("offset")))) }
+        .register("feedEntryCount") { v -> JsonPrimitive(db.feedEntryDao().countByFeed(v.str("feedId"))) }
+        .register("feedEntry") { v -> json.encodeToJsonElement(db.feedEntryDao().getById(v.str("id"))) }
         // Device/App mutations (also demonstrate the WS event fan-out)
         .register("updateDeviceName") { v ->
             val name = v.str("name")
