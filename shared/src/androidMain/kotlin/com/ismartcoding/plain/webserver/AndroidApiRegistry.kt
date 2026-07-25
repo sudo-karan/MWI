@@ -2,7 +2,10 @@ package com.ismartcoding.plain.webserver
 
 import com.ismartcoding.plain.features.device.DeviceInfoProvider
 import com.ismartcoding.plain.features.file.FileService
+import com.ismartcoding.plain.features.media.MediaProvider
+import com.ismartcoding.plain.features.media.MediaType
 import com.ismartcoding.plain.web.api.ApiRegistry
+import com.ismartcoding.plain.web.media.MediaQuery
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -37,6 +40,28 @@ object AndroidApiRegistry {
         .register("writeTextFile") { v -> io { JsonPrimitive(FileService.writeTextFile(v.str("path"), v.str("content"))) } }
         // File URL token (for building /fs, /zip, /upload URLs)
         .register("urlToken") { io { JsonPrimitive(AndroidWebServer.urlToken ?: "") } }
+        // Media
+        .register("images") { v -> io { json.encodeToJsonElement(mediaQuery(MediaType.IMAGE, v)) } }
+        .register("imageCount") { v -> io { JsonPrimitive(MediaProvider.count(MediaType.IMAGE, v.optStr("bucketId"))) } }
+        .register("videos") { v -> io { json.encodeToJsonElement(mediaQuery(MediaType.VIDEO, v)) } }
+        .register("videoCount") { v -> io { JsonPrimitive(MediaProvider.count(MediaType.VIDEO, v.optStr("bucketId"))) } }
+        .register("audios") { v -> io { json.encodeToJsonElement(mediaQuery(MediaType.AUDIO, v)) } }
+        .register("audioCount") { v -> io { JsonPrimitive(MediaProvider.count(MediaType.AUDIO, v.optStr("bucketId"))) } }
+        .register("mediaBuckets") { v -> io { json.encodeToJsonElement(MediaProvider.buckets(mediaType(v))) } }
+
+    private fun mediaQuery(type: MediaType, v: JsonObject?) = MediaProvider.query(
+        type = type,
+        offset = MediaQuery.clampOffset(v.optInt("offset")),
+        limit = MediaQuery.clampLimit(v.optInt("limit")),
+        bucketId = v.optStr("bucketId"),
+    )
+
+    private fun mediaType(v: JsonObject?): MediaType =
+        when (v.optStr("type")?.uppercase()) {
+            "VIDEO" -> MediaType.VIDEO
+            "AUDIO" -> MediaType.AUDIO
+            else -> MediaType.IMAGE
+        }
 
     private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }
 
@@ -46,4 +71,10 @@ object AndroidApiRegistry {
     private fun JsonObject?.strList(key: String): List<String> =
         (this?.get(key) as? JsonArray)?.map { it.jsonPrimitive.content }
             ?: throw IllegalArgumentException("$key required")
+
+    private fun JsonObject?.optStr(key: String): String? =
+        this?.get(key)?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() }
+
+    private fun JsonObject?.optInt(key: String): Int? =
+        this?.get(key)?.jsonPrimitive?.content?.toIntOrNull()
 }
