@@ -46,7 +46,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
   pipeline → encrypted response
 - 🟡 Operation dispatch is a pragmatic name+variables **`ApiRegistry`** (spec's vendored kGraphQL
   fork is a documented later item; we control both ends of the contract until the SPA is built)
-- ⬜ Registered event socket (session-token registration + WS event fan-out) — lands with more domains
+- ✅ **Registered event socket + WS event fan-out**: browser proves it holds the session token
+  (`XChaCha20(sessionToken, "register")`), joins the **`WsHub`** (unit-tested), and receives pushed
+  events (`[4-byte type] + XChaCha20(perConnectionToken, payload)`). Demonstrated by `updateDeviceName`
+  emitting `DEVICE_NAME_UPDATED`. `setClip` added too.
 - ⬜ Per-call "404 for all but /health when web disabled" gating; CORS dynamic private-origin policy
 
 ## Phase 3 — First domains: Files, Media, Device 🟡

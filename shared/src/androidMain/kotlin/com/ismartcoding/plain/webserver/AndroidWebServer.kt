@@ -1,5 +1,6 @@
 package com.ismartcoding.plain.webserver
 
+import com.ismartcoding.plain.web.WsHub
 import com.ismartcoding.plain.web.auth.AuthManager
 import com.ismartcoding.plain.web.auth.PendingApproval
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,9 @@ object AndroidWebServer {
     @Volatile
     var urlToken: String? = null
         internal set
+
+    /** Fan-out registry for server→browser WS events (spec §6). Domain code emits through this. */
+    val wsHub = WsHub()
 
     @Volatile
     var manager: HttpServerManager? = null

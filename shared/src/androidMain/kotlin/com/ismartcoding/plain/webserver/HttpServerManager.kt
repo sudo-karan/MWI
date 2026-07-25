@@ -4,6 +4,7 @@ import com.ismartcoding.plain.crypto.AuthTokens
 import com.ismartcoding.plain.crypto.Crypto
 import com.ismartcoding.plain.crypto.DecryptResult
 import com.ismartcoding.plain.db.AppDb
+import com.ismartcoding.plain.platform.newId
 import com.ismartcoding.plain.preferences.AppPreferences
 import com.ismartcoding.plain.web.AuthRequest
 import com.ismartcoding.plain.web.AuthResponse
@@ -426,12 +427,36 @@ class HttpServerManager(
      * Registered event socket (spec §5 step 4). Full session-token registration + event fan-out land
      * with the domain phases; for now the socket is held open so the connection contract is live.
      */
+    /**
+     * Registered event socket (spec §5 step 4): the browser connects `/?cid=…` and proves it holds
+     * the session token by sending `XChaCha20(sessionToken, "register")`. On success the socket joins
+     * the [WsHub] and receives pushed events until it closes.
+     */
     private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.keepAlive() {
+        val cid = call.request.queryParameters["cid"] ?: ""
+        val session = runBlocking(Dispatchers.IO) { AppDb.instance.sessionDao().getByClientId(cid) }
+        if (session == null || session.token.isEmpty()) {
+            close(CloseReason(CloseReason.Codes.CANNOT_ACCEPT, "unauthorized"))
+            return
+        }
+        val token = AuthTokens.unhex(session.token)
+
+        // First frame must decrypt with the session token — proves the client is authenticated.
+        val first = incoming.receive()
+        if (first !is Frame.Binary || Crypto.decrypt(token, first.readBytes()) is DecryptResult.Failure) {
+            close(CloseReason(CloseReason.Codes.CANNOT_ACCEPT, "unauthorized"))
+            return
+        }
+
+        val connectionId = newId()
+        val sink = KtorWsSink(session.clientId, token, this)
+        AndroidWebServer.wsHub.add(connectionId, sink)
         try {
             for (frame in incoming) {
-                if (frame is Frame.Binary) frame.readBytes()
+                if (frame is Frame.Binary) frame.readBytes() // client pings/keepalives are ignored
             }
         } finally {
+            AndroidWebServer.wsHub.remove(connectionId)
             close(CloseReason(CloseReason.Codes.NORMAL, "bye"))
         }
     }
