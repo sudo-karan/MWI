@@ -119,12 +119,15 @@
     }).then(function (r) { if (!r.ok) throw new Error('upload failed (' + r.status + ')'); return r.text(); });
   }
 
-  /** Open the registered event socket; onEvent(type, payloadBytes) fires per frame. */
-  function events(sessionToken, onEvent) {
+  /**
+   * Open the registered event socket; onEvent(type, payloadBytes) fires per frame. Optional
+   * onStatus('open'|'close'|'error') reports connectivity so the UI can show/auto-reconnect.
+   */
+  function events(sessionToken, onEvent, onStatus) {
     const key = Crypto.fromHex(sessionToken);
     const ws = new WebSocket(wsBase() + '/?cid=' + encodeURIComponent(clientId));
     ws.binaryType = 'arraybuffer';
-    ws.onopen = function () { ws.send(Crypto.encrypt(key, Crypto.utf8('register'))); };
+    ws.onopen = function () { ws.send(Crypto.encrypt(key, Crypto.utf8('register'))); if (onStatus) onStatus('open'); };
     ws.onmessage = function (ev) {
       const frame = new Uint8Array(ev.data);
       if (frame.length < 4) return;
@@ -132,6 +135,8 @@
       const plain = Crypto.decrypt(key, frame.slice(4));
       if (plain && onEvent) onEvent(type >>> 0, plain);
     };
+    ws.onclose = function () { if (onStatus) onStatus('close'); };
+    ws.onerror = function () { if (onStatus) onStatus('error'); };
     return ws;
   }
 

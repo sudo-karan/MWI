@@ -155,7 +155,7 @@
       el('header', { class: 'topbar' }, [
         el('div', { class: 'logo', text: 'MWI' }),
         el('div', { class: 'title', text: 'Web Console' }),
-        el('div', { class: 'lock' }, [ el('span', { class: 'dot' }), el('span', { text: 'Encrypted' }) ]),
+        el('div', { class: 'lock' }, [ el('span', { class: 'dot', id: 'conn-dot' }), el('span', { id: 'conn-label', text: 'Encrypted' }) ]),
         el('button', { class: 'btn small', text: 'Lock', style: 'margin-left:14px', onclick: logout }),
       ]),
       sideEl,
@@ -886,6 +886,17 @@
           onclick: function () { api('sendScreenMirrorControl', { type: 'key', key: k.key }).catch(function () {}); } });
       }))));
 
+    if (info.controlEnabled) {
+      const textBox = el('input', { class: 'input', placeholder: 'Type into the focused field on the phone…', style: 'flex:1;min-width:180px' });
+      function sendText() { if (!textBox.value) return; api('sendScreenMirrorControl', { type: 'text', text: textBox.value }).catch(function () {}); textBox.value = ''; }
+      textBox.addEventListener('keydown', function (e) { if (e.key === 'Enter') { sendText(); api('sendScreenMirrorControl', { type: 'key', key: 'enter' }).catch(function () {}); } });
+      wrap.appendChild(el('div', { style: 'margin-top:8px;display:flex;gap:8px;flex-wrap:wrap' }, [
+        textBox,
+        el('button', { class: 'btn small', text: 'Send text', onclick: sendText }),
+        el('button', { class: 'btn small', text: 'Enter ⏎', onclick: function () { api('sendScreenMirrorControl', { type: 'key', key: 'enter' }).catch(function () {}); } }),
+      ]));
+    }
+
     if (info.state === 'running') ctrl.attach(); // best-effort resync (may need Restart to recover SPS)
     return wrap;
   }
@@ -1089,7 +1100,19 @@
     return function () { eventSubs[code] = (eventSubs[code] || []).filter(function (f) { return f !== fn; }); };
   }
 
-  function startEvents() {
+  let eventsWanted = false;
+  let reconnectTimer = null;
+  let reconnectDelay = 2000;
+
+  function setConn(status) {
+    const dot = $('#conn-dot'); const label = $('#conn-label');
+    if (!dot || !label) return;
+    if (status === 'open') { dot.style.background = 'var(--ok)'; label.textContent = 'Encrypted'; }
+    else if (status === 'reconnecting') { dot.style.background = '#e0a800'; label.textContent = 'Reconnecting…'; }
+    else { dot.style.background = 'var(--text-muted)'; label.textContent = 'Offline'; }
+  }
+
+  function openEventSocket() {
     if (!state.token) return;
     try {
       eventSocket = Api.events(state.token, function (type, payload) {
@@ -1100,10 +1123,36 @@
           const host = $('#content');
           if (host) renderView(host);
         }
+      }, function (st) {
+        if (st === 'open') { reconnectDelay = 2000; setConn('open'); }
+        else if (st === 'close') { setConn(eventsWanted ? 'reconnecting' : 'offline'); scheduleReconnect(); }
       });
-    } catch (e) { /* events are best-effort; the app works without them */ }
+    } catch (e) { scheduleReconnect(); }
   }
-  function stopEvents() { try { if (eventSocket) eventSocket.close(); } catch (e) {} eventSocket = null; }
+
+  function scheduleReconnect() {
+    if (!eventsWanted || reconnectTimer) return;
+    setConn('reconnecting');
+    reconnectTimer = setTimeout(function () {
+      reconnectTimer = null;
+      if (!eventsWanted) return;
+      reconnectDelay = Math.min(reconnectDelay * 2, 15000); // backoff, capped
+      openEventSocket();
+    }, reconnectDelay);
+  }
+
+  function startEvents() {
+    if (!state.token) return;
+    eventsWanted = true;
+    reconnectDelay = 2000;
+    openEventSocket();
+  }
+  function stopEvents() {
+    eventsWanted = false;
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    try { if (eventSocket) eventSocket.close(); } catch (e) {}
+    eventSocket = null;
+  }
 
   // ---------------------------------------------------------------- bootstrap
 
