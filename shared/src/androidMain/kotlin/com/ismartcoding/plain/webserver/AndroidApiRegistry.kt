@@ -4,7 +4,10 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import com.ismartcoding.plain.db.AppDb
+import com.ismartcoding.plain.db.ChatContent
 import com.ismartcoding.plain.db.DBookmark
+import com.ismartcoding.plain.db.DChat
+import com.ismartcoding.plain.db.DChatChannel
 import com.ismartcoding.plain.db.DBookmarkGroup
 import com.ismartcoding.plain.db.DFeed
 import com.ismartcoding.plain.db.DNote
@@ -203,6 +206,24 @@ object AndroidApiRegistry {
             )
             JsonPrimitive(ScreenMirror.control(control))
         }
+        // Chat (P2P / local)
+        .register("chatChannels") { json.encodeToJsonElement(db.chatChannelDao().getAll()) }
+        .register("createChatChannel") { v ->
+            val now = epochMillis()
+            val c = DChatChannel(id = newId(), name = v.str("name"), createdAt = now, updatedAt = now)
+            db.chatChannelDao().upsert(c); json.encodeToJsonElement(c)
+        }
+        .register("deleteChatChannel") { v -> db.chatChannelDao().deleteById(v.str("id")); JsonPrimitive(true) }
+        .register("chatItems") { v -> json.encodeToJsonElement(db.chatDao().getByChannel(v.str("channelId"), MediaQuery.clampLimit(v.optInt("limit")), MediaQuery.clampOffset(v.optInt("offset")))) }
+        .register("sendChat") { v ->
+            val now = epochMillis()
+            val chat = DChat(id = newId(), channelId = v.str("channelId"), isMe = true, content = ChatContent.Text(v.str("text")), createdAt = now, updatedAt = now)
+            db.chatDao().upsert(chat)
+            db.chatChannelDao().getById(v.str("channelId"))?.let { db.chatChannelDao().upsert(it.copy(updatedAt = now)) }
+            AndroidWebServer.wsHub.broadcast(com.ismartcoding.plain.web.WebEventType.MESSAGE_CREATED, ByteArray(0))
+            json.encodeToJsonElement(chat)
+        }
+        .register("deleteChat") { v -> db.chatDao().deleteById(v.str("id")); JsonPrimitive(true) }
         // Nearby devices (mDNS)
         .register("nearbyDevices") { json.encodeToJsonElement(NearbyDiscovery.devices.value) }
         .register("startNearbyDiscovery") { JsonPrimitive(NearbyDiscovery.start()) }

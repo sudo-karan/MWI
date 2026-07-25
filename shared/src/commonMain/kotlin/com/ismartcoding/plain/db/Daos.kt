@@ -251,6 +251,9 @@ interface ChatDao {
     @Update
     suspend fun update(item: DChat)
 
+    @Query("DELETE FROM chats WHERE id = :id")
+    suspend fun deleteById(id: String)
+
     @Delete
     suspend fun delete(item: DChat)
 }
@@ -265,6 +268,9 @@ interface ChatChannelDao {
 
     @Upsert
     suspend fun upsert(item: DChatChannel)
+
+    @Query("DELETE FROM chat_channels WHERE id = :id")
+    suspend fun deleteById(id: String)
 
     @Delete
     suspend fun delete(item: DChatChannel)

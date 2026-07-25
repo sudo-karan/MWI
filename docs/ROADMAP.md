@@ -138,7 +138,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
 - ✅ **Nearby devices via mDNS/DNS-SD** (`NsdManager`): advertises this device's `_mwi._tcp` service
   (when the server is up) and discovers/resolves other MWI instances on the LAN. Exposed as
   `nearbyDevices`/`startNearbyDiscovery`/`stopNearbyDiscovery` + a live **Nearby** screen.
-- ⬜ BLE / Wi-Fi Aware transports, peer pairing (QR), chat channels/members, DLNA send + receive
+- ✅ **QR scanner** (CameraX preview + ZXing live decode) and **P2P Chat** (channels + messages over
+  the DB entities; `chatChannels`/`chatItems`/`sendChat`/`createChatChannel` operations + a Chat
+  screen with a message composer). **24 of 27 tiles** now open real in-app screens.
+- ⬜ BLE / Wi-Fi Aware peer transports, QR pairing handshake, chat over the wire, DLNA send + receive
 
 ## Phases 8–9 ⬜
 5. Screen mirror — MediaProjection + MediaCodec + WS + Accessibility control + keyboard
