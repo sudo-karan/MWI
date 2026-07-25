@@ -9,7 +9,8 @@ import java.util.concurrent.TimeUnit
 /** Sends AVTransport SOAP actions to a DLNA renderer's control URL (spec §7 TV Cast). */
 object DlnaCaster {
     private const val SERVICE = "urn:schemas-upnp-org:service:AVTransport:1"
-    private val http = OkHttpClient.Builder().callTimeout(5, TimeUnit.SECONDS).build()
+    // LanOnlyDns confines every SOAP request to LAN IPs — the controlUrl is user/attacker-supplied.
+    private val http = OkHttpClient.Builder().dns(LanOnlyDns).callTimeout(5, TimeUnit.SECONDS).build()
 
     /** Set the media URI on the renderer and start playback. Returns true on success. */
     fun cast(controlUrl: String, mediaUrl: String): Boolean {

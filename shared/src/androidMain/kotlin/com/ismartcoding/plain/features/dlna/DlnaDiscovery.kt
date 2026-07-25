@@ -29,7 +29,9 @@ object DlnaDiscovery {
 
     val renderers = MutableStateFlow<List<DlnaRenderer>>(emptyList())
 
+    // LanOnlyDns confines the LOCATION fetch to LAN IPs — an SSDP responder controls that URL.
     private val http = OkHttpClient.Builder()
+        .dns(LanOnlyDns)
         .callTimeout(5, TimeUnit.SECONDS)
         .build()
 
