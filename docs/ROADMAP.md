@@ -141,7 +141,12 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
 - ✅ **QR scanner** (CameraX preview + ZXing live decode) and **P2P Chat** (channels + messages over
   the DB entities; `chatChannels`/`chatItems`/`sendChat`/`createChatChannel` operations + a Chat
   screen with a message composer). **24 of 27 tiles** now open real in-app screens.
-- ⬜ BLE / Wi-Fi Aware peer transports, QR pairing handshake, chat over the wire, DLNA send + receive
+- ✅ **DLNA / TV Cast**: hand-rolled SSDP `M-SEARCH` discovery of MediaRenderers (`DlnaDiscovery`,
+  multicast-lock + device-description parse for the AVTransport control URL) and AVTransport SOAP
+  `SetAVTransportURI`/`Play`/`Stop` (`DlnaCaster`). Operations `dlnaRenderers`/`startDlnaDiscovery`/
+  `dlnaCast`/`dlnaStop` + a **Cast** screen. **26 of 27 tiles** now open real in-app screens (only the
+  in-app Screen-Mirror *viewer* remains — it needs an H.264 decoder).
+- ⬜ BLE / Wi-Fi Aware peer transports, QR pairing handshake, chat over the wire, DLNA receiver
 
 ## Phases 8–9 ⬜
 5. Screen mirror — MediaProjection + MediaCodec + WS + Accessibility control + keyboard

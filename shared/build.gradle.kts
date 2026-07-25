@@ -91,6 +91,9 @@ kotlin {
                 implementation(libs.ktor.server.auto.head.response)
                 implementation(libs.ktor.network.tls.certificates)
                 implementation(libs.androidx.work.runtime)
+
+                // DLNA/UPnP device description fetch + SOAP control.
+                implementation(libs.okhttp)
             }
         }
 

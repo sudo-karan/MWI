@@ -20,6 +20,8 @@ import com.ismartcoding.plain.platform.newId
 import com.ismartcoding.plain.features.call.CallsProvider
 import com.ismartcoding.plain.features.contact.ContactsProvider
 import com.ismartcoding.plain.features.device.DeviceInfoProvider
+import com.ismartcoding.plain.features.dlna.DlnaCaster
+import com.ismartcoding.plain.features.dlna.DlnaDiscovery
 import com.ismartcoding.plain.features.file.FileService
 import com.ismartcoding.plain.features.notification.MwiNotificationListenerService
 import com.ismartcoding.plain.features.screenmirror.ScreenMirror
@@ -228,6 +230,12 @@ object AndroidApiRegistry {
         .register("nearbyDevices") { json.encodeToJsonElement(NearbyDiscovery.devices.value) }
         .register("startNearbyDiscovery") { JsonPrimitive(NearbyDiscovery.start()) }
         .register("stopNearbyDiscovery") { NearbyDiscovery.stop(); JsonPrimitive(true) }
+        // DLNA / TV cast
+        .register("dlnaRenderers") { json.encodeToJsonElement(DlnaDiscovery.renderers.value) }
+        .register("startDlnaDiscovery") { JsonPrimitive(DlnaDiscovery.start()) }
+        .register("stopDlnaDiscovery") { DlnaDiscovery.stop(); JsonPrimitive(true) }
+        .register("dlnaCast") { v -> io { JsonPrimitive(DlnaCaster.cast(v.str("controlUrl"), v.str("url"))) } }
+        .register("dlnaStop") { v -> io { JsonPrimitive(DlnaCaster.stop(v.str("controlUrl"))) } }
         // Device/App mutations (also demonstrate the WS event fan-out)
         .register("updateDeviceName") { v ->
             val name = v.str("name")
