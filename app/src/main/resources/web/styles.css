@@ -1,0 +1,167 @@
+/*
+ * MWI web console — styling. Theme-aware (light/dark via prefers-color-scheme) with a teal accent
+ * matching the Android app. No external fonts or assets: everything ships inside the APK.
+ */
+:root {
+  color-scheme: light dark;
+  --accent: #0B7285;
+  --accent-fg: #ffffff;
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #eef1f4;
+  --text: #14202a;
+  --text-muted: #5a6b78;
+  --border: #dbe2e8;
+  --danger: #c0392b;
+  --ok: #2e7d32;
+  --radius: 14px;
+  --shadow: 0 1px 3px rgba(0, 0, 0, .08), 0 8px 24px rgba(0, 0, 0, .06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #22a6bd;
+    --accent-fg: #04222a;
+    --bg: #0e1116;
+    --surface: #171b22;
+    --surface-2: #1f242d;
+    --text: #e7edf2;
+    --text-muted: #92a2b0;
+    --border: #2a313b;
+    --danger: #ff6b6b;
+    --ok: #6bcb77;
+    --shadow: 0 1px 3px rgba(0, 0, 0, .4), 0 10px 30px rgba(0, 0, 0, .35);
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); }
+button { font: inherit; }
+[hidden] { display: none !important; }
+
+/* -------------------------------------------------------------------- buttons / inputs */
+.btn {
+  appearance: none; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); border-radius: 10px; padding: 9px 16px; cursor: pointer;
+  font-weight: 600; transition: filter .12s ease, background .12s ease;
+}
+.btn:hover { filter: brightness(0.97); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
+.btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
+.btn.small { padding: 5px 10px; font-size: .82rem; border-radius: 8px; }
+.input {
+  width: 100%; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font: inherit;
+}
+.input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 1px; }
+
+/* -------------------------------------------------------------------- login */
+.login-wrap { min-height: 100%; display: grid; place-items: center; padding: 24px; }
+.login-card {
+  width: 100%; max-width: 400px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; padding: 32px; box-shadow: var(--shadow);
+}
+.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.brand .logo {
+  width: 46px; height: 46px; border-radius: 12px; background: var(--accent); color: var(--accent-fg);
+  display: grid; place-items: center; font-weight: 800; letter-spacing: .5px;
+}
+.brand h1 { font-size: 1.15rem; margin: 0; }
+.brand p { margin: 2px 0 0; font-size: .8rem; color: var(--text-muted); }
+.field { margin: 16px 0; }
+.field label { display: block; font-size: .82rem; margin-bottom: 6px; color: var(--text-muted); }
+.hint { font-size: .8rem; color: var(--text-muted); line-height: 1.5; }
+.status-line { margin-top: 14px; font-size: .88rem; min-height: 1.2em; }
+.status-line.err { color: var(--danger); }
+.status-line.pending { color: var(--accent); }
+.spinner {
+  display: inline-block; width: 14px; height: 14px; margin-right: 8px; vertical-align: -2px;
+  border: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* -------------------------------------------------------------------- app shell */
+.shell { display: grid; grid-template-columns: 232px 1fr; grid-template-rows: 56px 1fr; height: 100%; }
+.topbar {
+  grid-column: 1 / 3; display: flex; align-items: center; gap: 12px; padding: 0 18px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.topbar .logo {
+  width: 30px; height: 30px; border-radius: 8px; background: var(--accent); color: var(--accent-fg);
+  display: grid; place-items: center; font-weight: 800; font-size: .8rem;
+}
+.topbar .title { font-weight: 700; }
+.topbar .lock { margin-left: auto; font-size: .78rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+.topbar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+
+.sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 10px; overflow-y: auto; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none;
+  border: none; color: var(--text); padding: 10px 12px; border-radius: 10px; cursor: pointer;
+  font-weight: 600; font-size: .92rem;
+}
+.nav-item:hover { background: var(--surface-2); }
+.nav-item.active { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.nav-item .ico { width: 20px; text-align: center; }
+
+.content { padding: 24px; overflow-y: auto; }
+.page-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.page-head h2 { margin: 0; font-size: 1.35rem; }
+.page-head .actions { margin-left: auto; display: flex; gap: 8px; }
+
+/* -------------------------------------------------------------------- cards / grids / tables */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.card h3 { margin: 0 0 10px; font-size: .95rem; }
+.kv { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: .9rem; }
+.kv:last-child { border-bottom: none; }
+.kv .k { color: var(--text-muted); }
+.kv .v { font-variant-numeric: tabular-nums; text-align: right; word-break: break-word; }
+
+.meter { height: 8px; border-radius: 6px; background: var(--surface-2); overflow: hidden; margin-top: 10px; }
+.meter > span { display: block; height: 100%; background: var(--accent); }
+
+.list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.row {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border);
+}
+.row:last-child { border-bottom: none; }
+.row:hover { background: var(--surface-2); }
+.row .ico { width: 22px; text-align: center; opacity: .85; }
+.row .main { min-width: 0; flex: 1; }
+.row .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .sub { font-size: .78rem; color: var(--text-muted); }
+.row .trail { font-size: .8rem; color: var(--text-muted); white-space: nowrap; }
+.row.clickable { cursor: pointer; }
+
+.crumbs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 14px; font-size: .88rem; }
+.crumbs button { background: none; border: none; color: var(--accent); cursor: pointer; padding: 2px 4px; font: inherit; }
+.crumbs .sep { color: var(--text-muted); }
+
+.empty { text-align: center; color: var(--text-muted); padding: 40px 16px; }
+.err-box { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border)); color: var(--danger); padding: 14px 16px; border-radius: var(--radius); font-size: .9rem; }
+.note-editor { display: grid; gap: 10px; margin-bottom: 16px; }
+textarea.input { resize: vertical; min-height: 90px; font-family: inherit; }
+
+/* -------------------------------------------------------------------- responsive */
+@media (max-width: 720px) {
+  .shell { grid-template-columns: 1fr; grid-template-rows: 56px auto 1fr; }
+  .sidebar {
+    grid-row: 2; display: flex; gap: 6px; overflow-x: auto; border-right: none;
+    border-bottom: 1px solid var(--border); padding: 8px;
+  }
+  .nav-item { flex: 0 0 auto; padding: 8px 12px; }
+  .nav-item .label { display: none; }
+  .nav-item .ico { font-size: 1.1rem; }
+  .content { padding: 16px; }
+}
