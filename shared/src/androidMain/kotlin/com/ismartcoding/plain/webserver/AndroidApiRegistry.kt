@@ -3,6 +3,7 @@ package com.ismartcoding.plain.webserver
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import com.ismartcoding.plain.features.contact.ContactsProvider
 import com.ismartcoding.plain.features.device.DeviceInfoProvider
 import com.ismartcoding.plain.features.file.FileService
 import com.ismartcoding.plain.features.media.MediaProvider
@@ -54,6 +55,12 @@ object AndroidApiRegistry {
         .register("audios") { v -> io { json.encodeToJsonElement(mediaQuery(MediaType.AUDIO, v)) } }
         .register("audioCount") { v -> io { JsonPrimitive(MediaProvider.count(MediaType.AUDIO, v.optStr("bucketId"))) } }
         .register("mediaBuckets") { v -> io { json.encodeToJsonElement(MediaProvider.buckets(mediaType(v))) } }
+        // Contacts
+        .register("contacts") { v -> io { json.encodeToJsonElement(ContactsProvider.contacts(MediaQuery.clampOffset(v.optInt("offset")), MediaQuery.clampLimit(v.optInt("limit")))) } }
+        .register("contactCount") { io { JsonPrimitive(ContactsProvider.count()) } }
+        .register("contactSources") { io { json.encodeToJsonElement(ContactsProvider.sources()) } }
+        .register("contactGroups") { io { json.encodeToJsonElement(ContactsProvider.groups()) } }
+        .register("deleteContacts") { v -> io { JsonPrimitive(ContactsProvider.deleteContacts(v.strList("ids"))) } }
         // Device/App mutations (also demonstrate the WS event fan-out)
         .register("updateDeviceName") { v ->
             val name = v.str("name")
