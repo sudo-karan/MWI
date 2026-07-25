@@ -3,6 +3,7 @@ name: Build
 on:
   push:
     branches: [ main, "claude/**" ]
+    tags: [ "v*" ]          # e.g. v3.2.0 — triggers the release job below
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -99,7 +100,36 @@ jobs:
       - name: Assemble signed release APK
         run: ./gradlew :app:assembleGithubRelease --console=plain --stacktrace
 
+      - name: Stage APK under a versioned name
+        id: stage
+        run: |
+          set -e
+          SRC="$(ls app/build/outputs/apk/github/release/*.apk | head -n1)"
+          OUT="MWI-${GITHUB_REF_NAME}-github.apk"
+          cp "$SRC" "$OUT"
+          echo "apk=$OUT" >> "$GITHUB_OUTPUT"
+
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/github/release/*.apk
+          name: MWI ${{ github.ref_name }}
+          files: ${{ steps.stage.outputs.apk }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          body: |
+            ## MWI ${{ github.ref_name }} — Android app
+
+            **⬇ Download `MWI-${{ github.ref_name }}-github.apk` from the Assets below** and install it
+            on your phone (Android 9 / API 28+). You may need to allow installing from unknown sources.
+
+            MWI turns your Android phone into a private, self-hosted hub you manage from any browser on
+            the same Wi‑Fi — files, photos, contacts, messages, screen mirroring, and more. Nothing
+            leaves your network; every browser⇄phone byte is password-authenticated and end-to-end
+            encrypted (TLS + XChaCha20‑Poly1305).
+
+            After installing: open the app, start the web server, then browse to the address it shows.
+
+            > Signing: if repository secrets (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`,
+            > `KEY_PASSWORD`) are set, the APK is signed with your key; otherwise CI signs it with a
+            > per-build throwaway key. Set the secrets for a stable signature so users can update
+            > in place across releases.
