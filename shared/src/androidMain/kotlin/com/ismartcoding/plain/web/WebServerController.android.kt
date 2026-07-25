@@ -11,6 +11,8 @@ actual object WebServerController {
     actual val running: StateFlow<Boolean> = AndroidWebServer.running
     actual val sslPort: StateFlow<Int> = AndroidWebServer.sslPort
     actual val loginPassword: StateFlow<String?> = AndroidWebServer.loginPassword
+
+    actual fun setPassword(password: String) = AndroidWebServer.setLoginPassword(password)
     actual val pendingApprovals: StateFlow<List<PendingApproval>> = AndroidWebServer.pendingApprovals
 
     actual fun start() = HttpServerService.start(AndroidApp.context)
