@@ -102,9 +102,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
 - ✅ Room `Converters` (chat-content sealed polymorphism + channel-members + string lists) now
   **runtime-verified** by `ConvertersTest`.
 - ✅ **Standalone Compose screens** (real in-app UI, no server): **Device Info**, **Notes** (list +
-  editor + delete), **Files** (browser with navigation), wired to the home grid via an
-  `expect/actual FeatureScreen` seam. Remaining tiles fall back to the placeholder.
-- ⬜ RSS fetch/sync (network + readability), Notes/Docs export, screens for the rest of the tiles
+  editor + delete), **Files** (browser), **Photos** (Coil grid), **Contacts**, **Calls**, **Messages**,
+  **Apps** — wired to the home grid via an `expect/actual FeatureScreen` seam (a generic
+  load-then-list scaffold backs the viewers). Remaining tiles fall back to the placeholder.
+- ⬜ RSS fetch/sync (network + readability), Notes/Docs export, screens for the remaining tiles
 
 ## Phase 5 — Screen mirror 🟡
 
