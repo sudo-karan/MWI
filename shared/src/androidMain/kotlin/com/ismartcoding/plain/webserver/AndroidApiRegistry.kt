@@ -243,6 +243,14 @@ object AndroidApiRegistry {
             AndroidWebServer.wsHub.broadcast(WebEventType.DEVICE_NAME_UPDATED, name.encodeToByteArray())
             JsonPrimitive(name)
         }
+        // Backup / restore (Room-backed, user-authored data only)
+        .register("exportBackup") { com.ismartcoding.plain.db.BackupCodec.json.encodeToJsonElement(com.ismartcoding.plain.db.BackupData.serializer(), com.ismartcoding.plain.features.backup.BackupService.export()) }
+        .register("importBackup") { v ->
+            val el = v?.get("data")
+            if (el == null) JsonPrimitive(0)
+            else JsonPrimitive(com.ismartcoding.plain.features.backup.BackupService.import(
+                com.ismartcoding.plain.db.BackupCodec.json.decodeFromJsonElement(com.ismartcoding.plain.db.BackupData.serializer(), el)))
+        }
         .register("setClip") { v ->
             val text = v.str("text")
             withContext(Dispatchers.Main) {

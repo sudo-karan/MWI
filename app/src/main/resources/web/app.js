@@ -201,6 +201,7 @@
     { id: 'bookmarks', label: 'Bookmarks', ico: '🔖' },
     { id: 'feeds', label: 'Feeds', ico: '📰' },
     { id: 'apps', label: 'Apps', ico: '📦' },
+    { id: 'backup', label: 'Backup', ico: '💾' },
   ];
 
   function renderShell() {
@@ -282,6 +283,7 @@
       else if (state.view === 'notes') node = await viewNotes();
       else if (state.view === 'bookmarks') node = await viewBookmarks();
       else if (state.view === 'feeds') node = await viewFeeds();
+      else if (state.view === 'backup') node = await viewBackup();
       else if (state.view === 'apps') node = await viewApps();
       else node = el('div', { class: 'empty', text: 'Nothing here.' });
       host.innerHTML = '';
@@ -667,6 +669,63 @@
     };
   }
   function firstLine(s) { return s ? String(s).split('\n')[0].slice(0, 60) : ''; }
+
+  // ---------------------------------------------------------------- Backup & Restore view
+
+  function downloadJson(filename, obj) {
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = el('a', { href: url, download: filename });
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); if (a.parentNode) a.parentNode.removeChild(a); }, 1000);
+  }
+
+  function summarizeBackup(d) {
+    const map = { notes: 'notes', bookmarks: 'bookmarks', feeds: 'feeds', chats: 'chats', pomodoros: 'pomodoros' };
+    const parts = [];
+    Object.keys(map).forEach((k) => { const n = (d[k] || []).length; if (n) parts.push(n + ' ' + map[k]); });
+    return parts.length ? parts.join(', ') : 'nothing';
+  }
+
+  async function viewBackup() {
+    const wrap = el('div', {});
+    wrap.appendChild(pageHead('Backup & Restore'));
+    wrap.appendChild(el('p', { class: 'hint', style: 'max-width:560px', text:
+      'Export your on-device app data — notes, bookmarks, feeds, pomodoros, and chat — to a JSON file (fetched over the same end-to-end-encrypted channel), or restore one. Device data (photos, contacts, SMS, calls) lives in Android and is not included. Restore merges by id and never deletes.' }));
+
+    const exportBtn = el('button', { class: 'btn primary', text: '⬇ Export backup' });
+    exportBtn.addEventListener('click', async () => {
+      exportBtn.disabled = true;
+      try {
+        const data = await api('exportBackup');
+        downloadJson('mwi-backup-' + new Date().toISOString().slice(0, 10) + '.json', data);
+        toast('Exported ' + summarizeBackup(data) + '.', 'ok');
+      } catch (e) { toast(e.message, 'error'); }
+      exportBtn.disabled = false;
+    });
+
+    const picker = el('input', { type: 'file', accept: 'application/json,.json', style: 'display:none' });
+    picker.addEventListener('change', async () => {
+      const file = picker.files && picker.files[0];
+      if (!file) return;
+      let obj;
+      try { obj = JSON.parse(await file.text()); }
+      catch (e) { toast('Not a valid backup file.', 'error'); picker.value = ''; return; }
+      try { const n = await api('importBackup', { data: obj }); toast('Restored ' + n + ' records.', 'ok'); }
+      catch (e) { toast(e.message, 'error'); }
+      picker.value = '';
+    });
+
+    const card = el('div', { class: 'card', style: 'max-width:560px' }, [
+      el('div', { style: 'display:flex;gap:10px;flex-wrap:wrap' }, [
+        exportBtn,
+        el('button', { class: 'btn', text: '⬆ Restore from file', onclick: () => picker.click() }),
+        picker,
+      ]),
+    ]);
+    wrap.appendChild(card);
+    return wrap;
+  }
 
   // ---------------------------------------------------------------- Apps view
 
