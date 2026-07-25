@@ -107,7 +107,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
   load-then-list scaffold backs the viewers). Remaining tiles fall back to the placeholder.
 - ✅ **RSS/Feeds, Bookmarks, Tags, Pomodoro** screens (CRUD over the DAOs via a shared
   `CrudListScreen` scaffold with an add dialog) and a real **Settings** screen (DataStore: 2FA
-  toggle, device name, web-console on/off). **14 of ~28 tiles** now open real in-app screens.
+  toggle, device name, web-console on/off).
+- ✅ **Notifications** (mirror + grant-access link), **Documents** + **App Files** browsers (shared
+  `DirectoryBrowser`), **Developer** panel (server state/ports/URL token + DB tables). **22 of 27
+  home-grid tiles** now open real in-app screens.
 - ✅ **Sound Meter** (live level from `AudioRecord`, runtime mic-permission request), **Audio** player
   and **Video** player (Media3/ExoPlayer + `PlayerView`) over the media library. **17 of ~28 tiles**
   now open real in-app screens.
