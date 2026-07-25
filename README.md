@@ -13,19 +13,33 @@ password-authenticated and end-to-end encrypted (TLS plus an app-layer XChaCha20
 MWI is a rebrand of / built on the open-source [PlainApp](https://github.com/ismartcoding/plain-app);
 the `applicationId`/namespace stays `com.ismartcoding.plain`.
 
-> **Status — Android app broadly feature-complete; web SPA pending.** Built up in the phased order
-> in [`docs/ROADMAP.md`](docs/ROADMAP.md). Done and building: the KMP foundation + **security/crypto
-> core** (tested), the **Ktor/TLS web server** with login + **on-device 2FA**, the **encrypted +
-> replay-protected API** and **WS event push**, and domain backends for **Files, Media, Device,
-> Contacts, SMS, Calls, Apps, Notifications, Notes/RSS/Bookmarks/Tags/Pomodoro, Screen Mirror,
-> Nearby (mDNS), and DLNA**. The standalone app has **real in-app screens for 26 of 27 home-grid
-> tiles**, a Quick Settings tile, and i18n scaffolding (English + Spanish/French started). Every
-> commit builds an installable APK and keeps a green unit-test suite (60 tests).
+## Download
+
+Grab the latest APK from the [**Releases**](../../releases/latest) page (the
+`MWI-<version>-github.apk` asset), install it on your phone (Android 9 / API 28+; you may need to
+allow installing from unknown sources), then open the app, start the web server, and browse to the
+address it shows.
+
+Releases are produced automatically by CI when a `v*` tag is pushed. For a signature that stays
+stable across updates (so users can upgrade in place), set the repository secrets `KEYSTORE_BASE64`,
+`KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`; without them CI signs each build with a
+throwaway key.
+
+> **Status — Android app and browser dashboard both feature-complete.** Built up in the phased
+> order in [`docs/ROADMAP.md`](docs/ROADMAP.md). Done and building: the KMP foundation +
+> **security/crypto core** (tested), the **Ktor/TLS web server** with login + **on-device 2FA**, the
+> **encrypted + replay-protected API** and **WS event push**, and domain backends for **Files,
+> Media, Device, Contacts, SMS, Calls, Apps, Notifications, Notes/RSS/Bookmarks/Tags/Pomodoro,
+> Screen Mirror, Nearby (mDNS), and DLNA**. The standalone app has **real in-app screens for 26 of
+> 27 home-grid tiles**, a Quick Settings tile, and i18n scaffolding (English + Spanish/French).
+> The **browser SPA** is now a full dashboard — every server domain has a UI, over a from-scratch
+> XChaCha20-Poly1305 client proven byte-compatible with the server — including a **live H.264 screen
+> mirror with remote control**, plus **Backup/Restore** of on-device app data. Every commit builds
+> an installable APK and keeps a green unit-test suite.
 >
-> **Still pending:** the browser **dashboard SPA** (currently a placeholder page — the largest
-> remaining piece), the DLNA receiver / BLE·Wi-Fi-Aware peer transports, optional AI image search,
-> the rest of the ~18 locales, and release hardening. See the roadmap for the exact done/pending
-> breakdown.
+> **Still pending:** the DLNA receiver / BLE·Wi-Fi-Aware peer transports, optional AI image search,
+> the rest of the ~18 locales, and further security hardening. See the roadmap for the exact
+> done/pending breakdown.
 
 ---
 
