@@ -1,9 +1,15 @@
 package com.ismartcoding.plain.webserver
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import com.ismartcoding.plain.features.device.DeviceInfoProvider
 import com.ismartcoding.plain.features.file.FileService
 import com.ismartcoding.plain.features.media.MediaProvider
 import com.ismartcoding.plain.features.media.MediaType
+import com.ismartcoding.plain.platform.AndroidApp
+import com.ismartcoding.plain.preferences.AppPreferences
+import com.ismartcoding.plain.web.WebEventType
 import com.ismartcoding.plain.web.api.ApiRegistry
 import com.ismartcoding.plain.web.media.MediaQuery
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +54,21 @@ object AndroidApiRegistry {
         .register("audios") { v -> io { json.encodeToJsonElement(mediaQuery(MediaType.AUDIO, v)) } }
         .register("audioCount") { v -> io { JsonPrimitive(MediaProvider.count(MediaType.AUDIO, v.optStr("bucketId"))) } }
         .register("mediaBuckets") { v -> io { json.encodeToJsonElement(MediaProvider.buckets(mediaType(v))) } }
+        // Device/App mutations (also demonstrate the WS event fan-out)
+        .register("updateDeviceName") { v ->
+            val name = v.str("name")
+            AppPreferences.setDeviceName(name)
+            AndroidWebServer.wsHub.broadcast(WebEventType.DEVICE_NAME_UPDATED, name.encodeToByteArray())
+            JsonPrimitive(name)
+        }
+        .register("setClip") { v ->
+            val text = v.str("text")
+            withContext(Dispatchers.Main) {
+                val cm = AndroidApp.context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("MWI", text))
+            }
+            JsonPrimitive(true)
+        }
 
     private fun mediaQuery(type: MediaType, v: JsonObject?) = MediaProvider.query(
         type = type,
