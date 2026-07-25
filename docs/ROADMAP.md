@@ -108,8 +108,11 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
 - ✅ **RSS/Feeds, Bookmarks, Tags, Pomodoro** screens (CRUD over the DAOs via a shared
   `CrudListScreen` scaffold with an add dialog) and a real **Settings** screen (DataStore: 2FA
   toggle, device name, web-console on/off). **14 of ~28 tiles** now open real in-app screens.
+- ✅ **Sound Meter** (live level from `AudioRecord`, runtime mic-permission request), **Audio** player
+  and **Video** player (Media3/ExoPlayer + `PlayerView`) over the media library. **17 of ~28 tiles**
+  now open real in-app screens.
 - ⬜ RSS fetch/sync (network + readability), Notes/Docs export, remaining tile screens
-  (audio/video players, QR, sound meter, chat, nearby, dev tools)
+  (QR scanner, chat, nearby, documents, dev tools)
 
 ## Phase 5 — Screen mirror 🟡
 
