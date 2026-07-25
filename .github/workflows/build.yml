@@ -133,3 +133,87 @@ jobs:
             > `KEY_PASSWORD`) are set, the APK is signed with your key; otherwise CI signs it with a
             > per-build throwaway key. Set the secrets for a stable signature so users can update
             > in place across releases.
+
+  rolling-release:
+    # Auto-publishes the newest APK to a single "latest" pre-release on every push to main, so an
+    # installable build is always in the Releases tab without cutting a version tag. Tagged releases
+    # (the `release` job above) remain the stable, versioned channel.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: test-and-assemble
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Configure signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -e
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            cat > keystore.properties <<EOF
+          storeFile=$RUNNER_TEMP/release.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+          else
+            echo "No signing secrets set — generating a throwaway keystore."
+            keytool -genkeypair -keystore "$RUNNER_TEMP/release.jks" -alias mwi \
+              -storepass throwaway -keypass throwaway -keyalg RSA -keysize 2048 -validity 3650 \
+              -dname "CN=MWI, OU=MWI, O=MWI, L=LAN, S=LAN, C=US"
+            cat > keystore.properties <<EOF
+          storeFile=$RUNNER_TEMP/release.jks
+          storePassword=throwaway
+          keyAlias=mwi
+          keyPassword=throwaway
+          EOF
+          fi
+
+      - name: Assemble signed release APK
+        run: ./gradlew :app:assembleGithubRelease --console=plain --stacktrace
+
+      - name: Stage APK under a stable name
+        run: |
+          set -e
+          SRC="$(ls app/build/outputs/apk/github/release/*.apk | head -n1)"
+          cp "$SRC" "MWI-latest-github.apk"
+
+      - name: Publish the rolling "latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build (main)
+          prerelease: true
+          files: MWI-latest-github.apk
+          fail_on_unmatched_files: true
+          body: |
+            ## MWI — latest build from `main`
+
+            Automatically rebuilt and republished on every merge to `main`, so this always holds the
+            newest APK (commit `${{ github.sha }}`).
+
+            **⬇ Download `MWI-latest-github.apk` from the Assets below** and install on Android 9+
+            (allow installing from unknown sources).
+
+            This is a rolling pre-release. For stable, versioned builds, see the tagged releases. If
+            no signing secrets are configured, each build uses a per-build throwaway key (installable,
+            but you may need to uninstall the previous build before updating).
