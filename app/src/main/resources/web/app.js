@@ -131,6 +131,9 @@
     { id: 'contacts', label: 'Contacts', ico: '👤' },
     { id: 'messages', label: 'Messages', ico: '💬' },
     { id: 'calls', label: 'Calls', ico: '📞' },
+    { id: 'mirror', label: 'Screen', ico: '🖥️' },
+    { id: 'chat', label: 'Chat', ico: '🗨️' },
+    { id: 'cast', label: 'Cast', ico: '📺' },
     { id: 'notes', label: 'Notes', ico: '📝' },
     { id: 'apps', label: 'Apps', ico: '📦' },
   ];
@@ -164,7 +167,7 @@
   }
 
   // Reset per-section drill-down state so a sidebar click opens the section at its top level.
-  function resetSubnav() { files.stack = []; messages.thread = null; }
+  function resetSubnav() { files.stack = []; messages.thread = null; chat.channel = null; }
 
   function logout() {
     stopEvents();
@@ -190,7 +193,12 @@
 
   function loading() { return el('div', { class: 'empty', html: '<span class="spinner"></span> Loading…' }); }
 
+  // A view may register a teardown (e.g. Screen Mirror closes its decoder + event subscription).
+  let viewCleanup = null;
+  function runViewCleanup() { if (viewCleanup) { try { viewCleanup(); } catch (e) {} viewCleanup = null; } }
+
   async function renderView(host) {
+    runViewCleanup();
     host.innerHTML = '';
     host.appendChild(loading());
     try {
@@ -201,6 +209,9 @@
       else if (state.view === 'contacts') node = await viewContacts();
       else if (state.view === 'messages') node = await viewMessages();
       else if (state.view === 'calls') node = await viewCalls();
+      else if (state.view === 'mirror') node = await viewMirror();
+      else if (state.view === 'chat') node = await viewChat();
+      else if (state.view === 'cast') node = await viewCast();
       else if (state.view === 'notes') node = await viewNotes();
       else if (state.view === 'apps') node = await viewApps();
       else node = el('div', { class: 'empty', text: 'Nothing here.' });
@@ -586,19 +597,271 @@
     } catch (e) { return ''; }
   }
 
+  // ---------------------------------------------------------------- Screen Mirror view
+
+  const NAV_KEYS = [
+    { key: 'back', label: '‹ Back' }, { key: 'home', label: '⌂ Home' },
+    { key: 'recents', label: '▭ Recents' }, { key: 'lock', label: '🔒 Lock' },
+  ];
+
+  async function viewMirror() {
+    const wrap = el('div', {});
+    const info = await api('screenMirrorState'); // { state, quality, controlEnabled }
+    const status = el('span', { class: 'hint' });
+    const canvas = el('canvas', { class: 'mirror-canvas', width: '2', height: '2' });
+    const ctrl = createMirror(canvas, status);
+    viewCleanup = function () { ctrl.detach(); };
+
+    const startBtn = el('button', { class: 'btn primary small', text: info.state === 'running' ? 'Restart' : 'Start mirroring' });
+    const stopBtn = el('button', { class: 'btn small', text: 'Stop', disabled: info.state === 'running' ? null : 'disabled' });
+    const quality = el('select', { class: 'input', style: 'width:auto;padding:6px 10px' }, ['720p', '1080p'].map(function (q) {
+      return el('option', { value: q, selected: q === info.quality ? 'selected' : null, text: q });
+    }));
+
+    startBtn.addEventListener('click', async function () {
+      ctrl.attach();                 // subscribe to frames BEFORE the encoder emits its one-time SPS
+      status.textContent = 'Requesting capture consent on the phone…';
+      try { await api('startScreenMirror'); } catch (e) { status.textContent = 'Start failed: ' + e.message; }
+      stopBtn.disabled = false;
+    });
+    stopBtn.addEventListener('click', async function () {
+      try { await api('stopScreenMirror'); } catch (e) {}
+      ctrl.detach(); status.textContent = 'Stopped.';
+    });
+    quality.addEventListener('change', function () { api('updateScreenMirrorQuality', { quality: quality.value }).catch(function () {}); });
+
+    wrap.appendChild(el('div', { class: 'page-head' }, [
+      el('h2', { text: 'Screen Mirror' }),
+      el('div', { class: 'actions' }, [quality, startBtn, stopBtn]),
+    ]));
+
+    if (!window.VideoDecoder) {
+      wrap.appendChild(el('div', { class: 'err-box', text: 'This browser has no WebCodecs VideoDecoder, so the H.264 stream cannot be decoded here. Use a recent Chrome, Edge, or Safari 16.4+.' }));
+    }
+    if (!info.controlEnabled) {
+      wrap.appendChild(el('div', { class: 'card', style: 'margin-bottom:12px' }, [
+        el('div', { class: 'kv' }, [
+          el('span', { class: 'k', text: 'Remote control is off (Accessibility service not enabled).' }),
+          el('button', { class: 'btn small', text: 'Open settings on phone', onclick: function () { api('openAccessibilitySettings').catch(function () {}); } }),
+        ]),
+      ]));
+    }
+
+    const stage = el('div', { class: 'mirror-stage' }, [canvas]);
+    bindMirrorControls(canvas, info.controlEnabled);
+    wrap.appendChild(stage);
+    wrap.appendChild(el('div', { style: 'margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center' },
+      [status].concat(NAV_KEYS.map(function (k) {
+        return el('button', { class: 'btn small', text: k.label, disabled: info.controlEnabled ? null : 'disabled',
+          onclick: function () { api('sendScreenMirrorControl', { type: 'key', key: k.key }).catch(function () {}); } });
+      }))));
+
+    if (info.state === 'running') ctrl.attach(); // best-effort resync (may need Restart to recover SPS)
+    return wrap;
+  }
+
+  /** Wire an H.264 (Annex-B) access-unit stream from event 301 into a WebCodecs decoder -> canvas. */
+  function createMirror(canvas, status) {
+    const H = window.MwiH264;
+    const ctx = canvas.getContext('2d');
+    let decoder = null, configured = false, sawKey = false, ts = 0, params = null, unsub = null;
+
+    function ensureDecoder(codecStr) {
+      decoder = new window.VideoDecoder({
+        output: function (frame) {
+          if (canvas.width !== frame.displayWidth) canvas.width = frame.displayWidth;
+          if (canvas.height !== frame.displayHeight) canvas.height = frame.displayHeight;
+          ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+          frame.close();
+        },
+        error: function (e) { status.textContent = 'Decoder error: ' + e; },
+      });
+      decoder.configure({ codec: codecStr, optimizeForLatency: true });
+      configured = true;
+      status.textContent = 'Live';
+    }
+
+    function feed(au) {
+      if (!window.VideoDecoder) return;
+      const types = H.nalTypeSet(au);
+      const hasSps = types.has(7);
+      const hasIdr = types.has(5);
+      const hasVcl = types.has(1) || types.has(5);
+      if (hasSps) {
+        params = H.paramSets(au);
+        if (!configured) { const cs = H.codecString(au); if (cs) { try { ensureDecoder(cs); } catch (e) { status.textContent = 'Configure failed: ' + e.message; return; } } }
+      }
+      if (!configured || !hasVcl) return;       // wait for SPS; skip config/SEI-only units
+      let data = au;
+      if (hasIdr && !hasSps && params) data = H.concat(params, au); // self-contained keyframe
+      if (!sawKey) { if (!hasIdr) return; sawKey = true; }          // must start on a keyframe
+      try { decoder.decode(new EncodedVideoChunk({ type: hasIdr ? 'key' : 'delta', timestamp: ts, data: data })); ts += 33333; }
+      catch (e) { status.textContent = 'Decode error: ' + e.message; }
+    }
+
+    return {
+      attach: function () {
+        if (unsub) return; // already attached
+        sawKey = false;
+        unsub = onEventType(300 /* SCREEN_MIRRORING */, function () { status.textContent = 'Live'; });
+        const unsubV = onEventType(301 /* SCREEN_MIRROR_VIDEO */, feed);
+        const prev = unsub;
+        unsub = function () { prev(); unsubV(); };
+        status.textContent = 'Connecting…';
+      },
+      detach: function () {
+        if (unsub) { unsub(); unsub = null; }
+        try { if (decoder && decoder.state !== 'closed') decoder.close(); } catch (e) {}
+        decoder = null; configured = false; sawKey = false;
+      },
+    };
+  }
+
+  /** Translate pointer gestures on the canvas into normalized tap/swipe controls. */
+  function bindMirrorControls(canvas, enabled) {
+    if (!enabled) return;
+    let down = null;
+    function norm(ev) {
+      const r = canvas.getBoundingClientRect();
+      return { x: clamp01((ev.clientX - r.left) / r.width), y: clamp01((ev.clientY - r.top) / r.height), t: Date.now() };
+    }
+    canvas.addEventListener('pointerdown', function (ev) { down = norm(ev); canvas.setPointerCapture(ev.pointerId); });
+    canvas.addEventListener('pointerup', function (ev) {
+      if (!down) return;
+      const up = norm(ev);
+      const dist = Math.hypot(up.x - down.x, up.y - down.y);
+      const held = up.t - down.t;
+      let ctl;
+      if (dist < 0.02) ctl = { type: held > 500 ? 'longpress' : 'tap', x: down.x, y: down.y };
+      else ctl = { type: 'swipe', x: down.x, y: down.y, x2: up.x, y2: up.y, durationMs: Math.min(800, Math.max(50, held)) };
+      down = null;
+      api('sendScreenMirrorControl', ctl).catch(function () {});
+    });
+  }
+  function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+
+  // ---------------------------------------------------------------- Chat view
+
+  const chat = { channel: null }; // { id, name }
+
+  async function viewChat() {
+    const wrap = el('div', {});
+    if (chat.channel) return viewChatChannel(wrap);
+    const channels = await api('chatChannels');
+    wrap.appendChild(pageHead('Chat', [
+      el('button', { class: 'btn small', text: '+ New channel', onclick: async function () {
+        const name = prompt('Channel name');
+        if (name) { try { await api('createChatChannel', { name: name }); renderView($('#content')); } catch (e) { alert(e.message); } }
+      } }),
+    ]));
+    if (!channels || !channels.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No channels yet. Create one to start a local, on-device conversation.' })); return wrap; }
+    const list = el('div', { class: 'list' }, channels.map(function (c) {
+      return el('div', { class: 'row clickable', onclick: function () { chat.channel = { id: c.id, name: c.name }; renderView($('#content')); } }, [
+        el('div', { class: 'avatar', text: initials(c.name) }),
+        el('div', { class: 'main' }, [ el('div', { class: 'name', text: c.name || '(unnamed)' }), el('div', { class: 'sub', text: 'Updated ' + fmtDate(c.updatedAt) }) ]),
+        el('button', { class: 'btn small danger', text: 'Delete', onclick: async function (ev) {
+          ev.stopPropagation();
+          try { await api('deleteChatChannel', { id: c.id }); renderView($('#content')); } catch (e) { alert(e.message); }
+        } }),
+      ]);
+    }));
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  async function viewChatChannel(wrap) {
+    const ch = chat.channel;
+    wrap.appendChild(el('div', { class: 'page-head' }, [
+      el('button', { class: 'btn small', text: '‹ Back', onclick: function () { chat.channel = null; renderView($('#content')); } }),
+      el('h2', { text: ch.name || 'Channel', style: 'font-size:1.1rem' }),
+    ]));
+    const items = await api('chatItems', { channelId: ch.id, limit: 300, offset: 0 });
+    const ordered = (items || []).slice().sort(function (a, b) { return Number(a.createdAt) - Number(b.createdAt); });
+    const thread = el('div', { class: 'thread' }, ordered.length ? ordered.map(function (m) {
+      return el('div', { class: 'bubble ' + (m.isMe ? 'me' : 'them') }, [
+        el('div', { class: 'txt', text: chatText(m.content) }),
+        el('div', { class: 'stamp', text: fmtDate(m.createdAt) }),
+      ]);
+    }) : [el('div', { class: 'empty', text: 'No messages yet.' })]);
+    wrap.appendChild(thread);
+
+    const box = el('input', { class: 'input', placeholder: 'Message', style: 'flex:1' });
+    const send = el('button', { class: 'btn primary', text: 'Send' });
+    async function doSend() {
+      const text = box.value.trim();
+      if (!text) return;
+      box.value = ''; send.disabled = true;
+      try { await api('sendChat', { channelId: ch.id, text: text }); renderView($('#content')); }
+      catch (e) { send.disabled = false; alert(e.message); }
+    }
+    send.addEventListener('click', doSend);
+    box.addEventListener('keydown', function (e) { if (e.key === 'Enter') doSend(); });
+    wrap.appendChild(el('div', { style: 'display:flex;gap:8px;margin-top:12px' }, [box, send]));
+    return wrap;
+  }
+
+  function chatText(content) {
+    if (!content) return '';
+    if (typeof content.text === 'string') return content.text;
+    if (content.items) return '📎 ' + content.items.length + ' attachment' + (content.items.length === 1 ? '' : 's');
+    return '(message)';
+  }
+
+  // ---------------------------------------------------------------- Cast (DLNA) view
+
+  async function viewCast() {
+    const wrap = el('div', {});
+    const renderers = await api('dlnaRenderers');
+    wrap.appendChild(pageHead('Cast', [
+      el('button', { class: 'btn small', text: 'Scan', onclick: async function () { try { await api('startDlnaDiscovery'); setTimeout(function () { renderView($('#content')); }, 1500); } catch (e) { alert(e.message); } } }),
+      el('button', { class: 'btn small', text: 'Stop scan', onclick: function () { api('stopDlnaDiscovery').catch(function () {}); } }),
+    ]));
+    wrap.appendChild(el('p', { class: 'hint', text: 'Discovers DLNA/UPnP renderers (smart TVs, receivers) on the LAN via SSDP. To cast, give a media URL the TV can fetch directly — note a self-signed HTTPS URL may be rejected by some TVs.' }));
+    if (!renderers || !renderers.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No renderers found yet. Press Scan.' })); return wrap; }
+    const list = el('div', { class: 'list' }, renderers.map(function (r) {
+      const urlBox = el('input', { class: 'input', placeholder: 'Media URL (http://…)', style: 'flex:1;min-width:160px' });
+      return el('div', { class: 'row', style: 'flex-wrap:wrap;gap:8px' }, [
+        el('div', { class: 'ico', text: '📺' }),
+        el('div', { class: 'main' }, [ el('div', { class: 'name', text: r.name || '(renderer)' }), el('div', { class: 'sub', text: r.location } ) ]),
+        el('div', { style: 'display:flex;gap:8px;flex:1 1 100%;margin-top:6px' }, [
+          urlBox,
+          el('button', { class: 'btn small primary', text: 'Cast', onclick: async function () {
+            if (!urlBox.value) return;
+            try { await api('dlnaCast', { controlUrl: r.controlUrl, url: urlBox.value }); } catch (e) { alert(e.message); }
+          } }),
+          el('button', { class: 'btn small', text: 'Stop', onclick: function () { api('dlnaStop', { controlUrl: r.controlUrl }).catch(function () {}); } }),
+        ]),
+      ]);
+    }));
+    wrap.appendChild(list);
+    return wrap;
+  }
+
   // ---------------------------------------------------------------- live events
 
   let eventSocket = null;
-  // Which views should refresh when a given event code arrives.
+  const eventSubs = {}; // event code -> [fn(payloadUint8)]
+  // Which views should re-render when a given event code arrives.
   const EVENT_VIEWS = {
-    100: ['messages'], 101: ['messages'], 102: ['messages'], // MESSAGE_*
-    1200: ['device'],                                        // DEVICE_NAME_UPDATED
-    1500: ['calls'],                                         // CALL_STATE_CHANGED
+    100: ['messages', 'chat'], 101: ['messages', 'chat'], 102: ['messages', 'chat'], // MESSAGE_*
+    900: ['chat'],        // CHANNELS_UPDATED
+    1200: ['device'],     // DEVICE_NAME_UPDATED
+    1400: ['cast'], 1401: ['cast'],
+    1500: ['calls'],      // CALL_STATE_CHANGED
   };
+
+  /** Subscribe to a raw event code; returns an unsubscribe fn. Used by Screen Mirror for video frames. */
+  function onEventType(code, fn) {
+    (eventSubs[code] = eventSubs[code] || []).push(fn);
+    return function () { eventSubs[code] = (eventSubs[code] || []).filter(function (f) { return f !== fn; }); };
+  }
+
   function startEvents() {
     if (!state.token) return;
     try {
-      eventSocket = Api.events(state.token, function (type) {
+      eventSocket = Api.events(state.token, function (type, payload) {
+        const subs = eventSubs[type];
+        if (subs) subs.slice().forEach(function (fn) { try { fn(payload); } catch (e) {} });
         const views = EVENT_VIEWS[type];
         if (views && views.indexOf(state.view) !== -1) {
           const host = $('#content');
