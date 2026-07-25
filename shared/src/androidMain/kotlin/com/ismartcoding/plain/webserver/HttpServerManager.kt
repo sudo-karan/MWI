@@ -124,7 +124,10 @@ class HttpServerManager(
         server = embeddedServer(
             factory = Netty,
             configure = {
-                connector { port = http; host = "0.0.0.0" }
+                // Plaintext connector is bound to loopback only: the LAN-facing surface is HTTPS
+                // exclusively (mDNS advertises the SSL port), so a passive LAN eavesdropper can never
+                // capture the query-string urlToken from an http:// /fs request.
+                connector { port = http; host = "127.0.0.1" }
                 sslConnector(
                     keyStore = keyStore,
                     keyAlias = keyAlias,
@@ -179,10 +182,13 @@ class HttpServerManager(
             // Everything else 404s while the web feature is disabled.
             intercept404WhenDisabled()
 
-            // Loopback-only shutdown.
+            // Loopback-only shutdown, additionally gated on the server urlToken so a same-device app
+            // or a CSRF "simple request" from a local browser can't stop the server without the
+            // secret. Both checks must pass.
             get("/shutdown") {
                 val host = call.request.origin.remoteHost
-                if (host == "127.0.0.1" || host == "0:0:0:0:0:0:0:1" || host == "::1" || host == "localhost") {
+                val loopback = host == "127.0.0.1" || host == "0:0:0:0:0:0:0:1" || host == "::1" || host == "localhost"
+                if (loopback && validUrlToken()) {
                     call.respondText("shutting down", ContentType.Text.Plain)
                     stop()
                 } else {
