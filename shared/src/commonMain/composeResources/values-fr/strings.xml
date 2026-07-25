@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- French. Keys not present here fall back to the default (English) catalog. -->
+<resources>
+    <string name="app_tagline">Votre téléphone, sur votre réseau — privé par conception.</string>
+    <string name="web_console_status_off">La console web est désactivée</string>
+    <string name="web_console_status_on">La console web est activée</string>
+    <string name="start_web_console">Démarrer la console web</string>
+    <string name="stop_web_console">Arrêter la console web</string>
+    <string name="back">Retour</string>
+    <string name="coming_soon">Bientôt disponible</string>
+    <string name="approve">Approuver</string>
+    <string name="reject">Refuser</string>
+    <string name="web_open_in_browser">Ouvrez cette adresse dans un navigateur du même réseau Wi‑Fi :</string>
+    <string name="web_login_password">Mot de passe (à saisir dans le navigateur)</string>
+    <string name="web_pending_login">Un navigateur tente de se connecter</string>
+
+    <string name="feature_web_console">Console web</string>
+    <string name="feature_files">Fichiers</string>
+    <string name="feature_photos">Photos</string>
+    <string name="feature_videos">Vidéos</string>
+    <string name="feature_audio">Audio</string>
+    <string name="feature_contacts">Contacts</string>
+    <string name="feature_messages">Messages</string>
+    <string name="feature_calls">Appels</string>
+    <string name="feature_apps">Applis</string>
+    <string name="feature_notifications">Notifications</string>
+    <string name="feature_screen_mirror">Recopie d’écran</string>
+    <string name="feature_notes">Notes</string>
+    <string name="feature_rss">Lecteur RSS</string>
+    <string name="feature_chat">Chat P2P</string>
+    <string name="feature_nearby">Appareils à proximité</string>
+    <string name="feature_cast">Diffuser sur TV</string>
+    <string name="feature_sound_meter">Sonomètre</string>
+    <string name="feature_pomodoro">Pomodoro</string>
+    <string name="feature_qr">Scanner QR</string>
+    <string name="feature_documents">Documents</string>
+    <string name="feature_bookmarks">Favoris</string>
+    <string name="feature_tags">Étiquettes</string>
+    <string name="feature_device_info">Infos de l’appareil</string>
+    <string name="feature_developer">Développeur</string>
+    <string name="feature_settings">Paramètres</string>
+</resources>

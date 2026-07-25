@@ -148,12 +148,22 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
   in-app Screen-Mirror *viewer* remains — it needs an H.264 decoder).
 - ⬜ BLE / Wi-Fi Aware peer transports, QR pairing handshake, chat over the wire, DLNA receiver
 
-## Phases 8–9 ⬜
-5. Screen mirror — MediaProjection + MediaCodec + WS + Accessibility control + keyboard
-6. Standalone tools — Notes, RSS, players, QR, Pomodoro, Sound Meter, tags, browsers, settings
-7. P2P + casting — BLE / Wi-Fi Aware, peer chat/channels/pairing, DLNA, mDNS
-8. AI image search (optional; github/google flavors)
-9. Polish — i18n locales, PWA frontend, dev tools, backup/restore, hardening, docs, release workflow
+## Phase 9 — Polish 🟡
+
+- ✅ **Quick Settings tile** (`WebServerTileService`) to start/stop the web server from the shade.
+- ✅ **i18n locales started**: Spanish + French catalogs for the core UI strings; unlisted keys fall
+  back to English (Compose Resources per-key fallback).
+- ✅ README status updated to reflect the broadly-feature-complete Android app.
+- ⬜ Remaining ~15 locales, backup/restore, release-signing dry run, security hardening pass, a
+  Robolectric DB round-trip test.
+
+## Still open ⬜
+
+8. **AI image search** (optional; github/google flavors) — MediaPipe/LiteRT + CLIP embeddings.
+9. **Web dashboard SPA** — the browser frontend (§7B). Currently a placeholder page; the single
+   largest remaining piece (needs a JS client for the encrypted handshake). Not verifiable headlessly.
+   - DLNA receiver, BLE / Wi-Fi Aware peer transports, chat-over-the-wire, MMS attachments,
+     contacts create/update, live `CALL_STATE_CHANGED`.
 
 ## Acceptance criteria (spec §14)
 
