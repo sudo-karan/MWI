@@ -83,8 +83,11 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
 - ✅ **Contacts**: `contacts` (paged, phones+emails batched to avoid N+1), `contactCount`,
   `contactSources`, `contactGroups`, `deleteContacts` via `ContactsProvider`. Phone numbers
   normalized by the unit-tested `PhoneNumbers`.
-- ⬜ Contacts create/update; SMS/MMS (conversations, send, multi-SIM); Calls (log + control);
-  Notifications (mirror + reply); Apps (list/(un)install)
+- ✅ **SMS**: `sms` (paged, per-thread), `smsCount`, `smsConversations` (grouped latest-per-thread),
+  `smsConversationCount`, `sendSms` (multi-SIM via `SmsManager.createForSubscriptionId`, multipart),
+  `sims` (active subscriptions). SMS type mapping via the unit-tested `SmsFormat`.
+- ⬜ Contacts create/update; MMS send + attachments; Calls (log + control); Notifications
+  (mirror + reply); Apps (list/(un)install)
 
 ## Phases 5–9 ⬜
 

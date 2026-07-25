@@ -8,6 +8,8 @@ import com.ismartcoding.plain.features.device.DeviceInfoProvider
 import com.ismartcoding.plain.features.file.FileService
 import com.ismartcoding.plain.features.media.MediaProvider
 import com.ismartcoding.plain.features.media.MediaType
+import com.ismartcoding.plain.features.sms.SimProvider
+import com.ismartcoding.plain.features.sms.SmsProvider
 import com.ismartcoding.plain.platform.AndroidApp
 import com.ismartcoding.plain.preferences.AppPreferences
 import com.ismartcoding.plain.web.WebEventType
@@ -61,6 +63,13 @@ object AndroidApiRegistry {
         .register("contactSources") { io { json.encodeToJsonElement(ContactsProvider.sources()) } }
         .register("contactGroups") { io { json.encodeToJsonElement(ContactsProvider.groups()) } }
         .register("deleteContacts") { v -> io { JsonPrimitive(ContactsProvider.deleteContacts(v.strList("ids"))) } }
+        // SMS
+        .register("sms") { v -> io { json.encodeToJsonElement(SmsProvider.messages(v.optStr("threadId"), MediaQuery.clampOffset(v.optInt("offset")), MediaQuery.clampLimit(v.optInt("limit")))) } }
+        .register("smsCount") { io { JsonPrimitive(SmsProvider.count()) } }
+        .register("smsConversations") { v -> io { json.encodeToJsonElement(SmsProvider.conversations(MediaQuery.clampOffset(v.optInt("offset")), MediaQuery.clampLimit(v.optInt("limit")))) } }
+        .register("smsConversationCount") { io { JsonPrimitive(SmsProvider.conversationCount()) } }
+        .register("sendSms") { v -> io { JsonPrimitive(SmsProvider.sendSms(v.str("address"), v.str("body"), v.optInt("subId") ?: -1)) } }
+        .register("sims") { io { json.encodeToJsonElement(SimProvider.sims()) } }
         // Device/App mutations (also demonstrate the WS event fan-out)
         .register("updateDeviceName") { v ->
             val name = v.str("name")
