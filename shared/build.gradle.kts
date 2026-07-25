@@ -62,6 +62,9 @@ kotlin {
                 // Android File-based DataStore factory (`preferencesDataStoreFile`).
                 implementation(libs.androidx.datastore.preferences)
 
+                // Image loading for the standalone media gallery.
+                implementation(libs.coil.compose)
+
                 // Embedded web server (Android-only): Ktor on Netty.
                 implementation(libs.ktor.server.core)
                 implementation(libs.ktor.server.netty)
