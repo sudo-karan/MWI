@@ -6,6 +6,7 @@ import com.ismartcoding.plain.ui.screens.AppsScreen
 import com.ismartcoding.plain.ui.screens.AudioScreen
 import com.ismartcoding.plain.ui.screens.BookmarksScreen
 import com.ismartcoding.plain.ui.screens.CallsScreen
+import com.ismartcoding.plain.ui.screens.ChatScreen
 import com.ismartcoding.plain.ui.screens.ContactsScreen
 import com.ismartcoding.plain.ui.screens.DeveloperScreen
 import com.ismartcoding.plain.ui.screens.DeviceInfoScreen
@@ -17,6 +18,7 @@ import com.ismartcoding.plain.ui.screens.NearbyScreen
 import com.ismartcoding.plain.ui.screens.NotesScreen
 import com.ismartcoding.plain.ui.screens.NotificationsScreen
 import com.ismartcoding.plain.ui.screens.PomodoroScreen
+import com.ismartcoding.plain.ui.screens.QrScannerScreen
 import com.ismartcoding.plain.ui.screens.SettingsScreen
 import com.ismartcoding.plain.ui.screens.SmsScreen
 import com.ismartcoding.plain.ui.screens.SoundMeterScreen
@@ -47,6 +49,8 @@ actual fun FeatureScreen(feature: Feature, onBack: () -> Unit) {
         "documents" -> DocumentsScreen(onBack)
         "app_files" -> AppFilesScreen(onBack)
         "developer" -> DeveloperScreen(onBack)
+        "qr" -> QrScannerScreen(onBack)
+        "chat" -> ChatScreen(onBack)
         else -> FeaturePlaceholder(feature, onBack)
     }
 }
