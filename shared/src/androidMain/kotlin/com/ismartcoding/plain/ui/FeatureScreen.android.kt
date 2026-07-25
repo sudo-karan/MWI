@@ -10,6 +10,7 @@ import com.ismartcoding.plain.ui.screens.DeviceInfoScreen
 import com.ismartcoding.plain.ui.screens.FeedsScreen
 import com.ismartcoding.plain.ui.screens.FilesScreen
 import com.ismartcoding.plain.ui.screens.MediaGalleryScreen
+import com.ismartcoding.plain.ui.screens.NearbyScreen
 import com.ismartcoding.plain.ui.screens.NotesScreen
 import com.ismartcoding.plain.ui.screens.PomodoroScreen
 import com.ismartcoding.plain.ui.screens.SettingsScreen
@@ -37,6 +38,7 @@ actual fun FeatureScreen(feature: Feature, onBack: () -> Unit) {
         "audio" -> AudioScreen(onBack)
         "videos" -> VideoScreen(onBack)
         "sound_meter" -> SoundMeterScreen(onBack)
+        "nearby" -> NearbyScreen(onBack)
         else -> FeaturePlaceholder(feature, onBack)
     }
 }

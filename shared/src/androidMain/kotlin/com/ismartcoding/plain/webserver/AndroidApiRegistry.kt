@@ -23,6 +23,7 @@ import com.ismartcoding.plain.features.screenmirror.ScreenMirror
 import com.ismartcoding.plain.features.screenmirror.ScreenMirrorControl
 import com.ismartcoding.plain.features.media.MediaProvider
 import com.ismartcoding.plain.features.media.MediaType
+import com.ismartcoding.plain.features.nearby.NearbyDiscovery
 import com.ismartcoding.plain.features.sms.SimProvider
 import com.ismartcoding.plain.features.sms.SmsProvider
 import com.ismartcoding.plain.platform.AndroidApp
@@ -202,6 +203,10 @@ object AndroidApiRegistry {
             )
             JsonPrimitive(ScreenMirror.control(control))
         }
+        // Nearby devices (mDNS)
+        .register("nearbyDevices") { json.encodeToJsonElement(NearbyDiscovery.devices.value) }
+        .register("startNearbyDiscovery") { JsonPrimitive(NearbyDiscovery.start()) }
+        .register("stopNearbyDiscovery") { NearbyDiscovery.stop(); JsonPrimitive(true) }
         // Device/App mutations (also demonstrate the WS event fan-out)
         .register("updateDeviceName") { v ->
             val name = v.str("name")

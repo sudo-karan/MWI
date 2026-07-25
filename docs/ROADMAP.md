@@ -130,7 +130,14 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
 - ⬜ Audio capture (`requestScreenMirrorAudio`), adaptive fps, per-client keyframe on join, the
   browser-side mirror decoder/UI
 
-## Phases 7–9 ⬜
+## Phase 7 — P2P + casting 🟡
+
+- ✅ **Nearby devices via mDNS/DNS-SD** (`NsdManager`): advertises this device's `_mwi._tcp` service
+  (when the server is up) and discovers/resolves other MWI instances on the LAN. Exposed as
+  `nearbyDevices`/`startNearbyDiscovery`/`stopNearbyDiscovery` + a live **Nearby** screen.
+- ⬜ BLE / Wi-Fi Aware transports, peer pairing (QR), chat channels/members, DLNA send + receive
+
+## Phases 8–9 ⬜
 5. Screen mirror — MediaProjection + MediaCodec + WS + Accessibility control + keyboard
 6. Standalone tools — Notes, RSS, players, QR, Pomodoro, Sound Meter, tags, browsers, settings
 7. P2P + casting — BLE / Wi-Fi Aware, peer chat/channels/pairing, DLNA, mDNS
