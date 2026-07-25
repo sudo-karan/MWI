@@ -105,6 +105,20 @@
     return download ? u + '&dl=1' : u;
   }
 
+  function tok(urlToken) { return '&token=' + encodeURIComponent(urlToken); }
+  function uploadUrl(urlToken, path) { return '/upload?path=' + encodeURIComponent(path) + tok(urlToken); }
+  function zipDirUrl(urlToken, path) { return '/zip/dir?path=' + encodeURIComponent(path) + tok(urlToken); }
+  function zipFilesUrl(urlToken, paths) {
+    return '/zip/files?' + paths.map(function (p) { return 'path=' + encodeURIComponent(p); }).join('&') + tok(urlToken);
+  }
+
+  /** Stream a File/Blob to the phone at the target path (atomic temp-then-rename on the server). */
+  function upload(urlToken, path, blob) {
+    return fetch(uploadUrl(urlToken, path), {
+      method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: blob,
+    }).then(function (r) { if (!r.ok) throw new Error('upload failed (' + r.status + ')'); return r.text(); });
+  }
+
   /** Open the registered event socket; onEvent(type, payloadBytes) fires per frame. */
   function events(sessionToken, onEvent) {
     const key = Crypto.fromHex(sessionToken);
@@ -121,5 +135,9 @@
     return ws;
   }
 
-  root.MwiApi = { clientId: clientId, login: login, call: call, fsUrl: fsUrl, events: events, AuthStatus: AuthStatus, setServerTime: function (t) { serverOffset = t - Date.now(); } };
+  root.MwiApi = {
+    clientId: clientId, login: login, call: call, fsUrl: fsUrl, events: events, AuthStatus: AuthStatus,
+    uploadUrl: uploadUrl, zipDirUrl: zipDirUrl, zipFilesUrl: zipFilesUrl, upload: upload,
+    setServerTime: function (t) { serverOffset = t - Date.now(); },
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

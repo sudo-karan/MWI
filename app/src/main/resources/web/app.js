@@ -134,6 +134,7 @@
     { id: 'mirror', label: 'Screen', ico: '🖥️' },
     { id: 'chat', label: 'Chat', ico: '🗨️' },
     { id: 'cast', label: 'Cast', ico: '📺' },
+    { id: 'notifications', label: 'Alerts', ico: '📣' },
     { id: 'notes', label: 'Notes', ico: '📝' },
     { id: 'apps', label: 'Apps', ico: '📦' },
   ];
@@ -212,6 +213,7 @@
       else if (state.view === 'mirror') node = await viewMirror();
       else if (state.view === 'chat') node = await viewChat();
       else if (state.view === 'cast') node = await viewCast();
+      else if (state.view === 'notifications') node = await viewNotifications();
       else if (state.view === 'notes') node = await viewNotes();
       else if (state.view === 'apps') node = await viewApps();
       else node = el('div', { class: 'empty', text: 'Nothing here.' });
@@ -297,14 +299,12 @@
     }
 
     const cur = files.stack[files.stack.length - 1];
-    wrap.appendChild(pageHead('Files'));
+    wrap.appendChild(filesHeader(cur));
     wrap.appendChild(renderCrumbs());
     let entries;
     try { entries = await api('files', { path: cur.path }); }
     catch (e) { wrap.appendChild(errBox(e)); return wrap; }
     entries = (entries || []).slice().sort((a, b) => (b.isDir - a.isDir) || a.name.localeCompare(b.name));
-    if (!entries.length) { wrap.appendChild(el('div', { class: 'empty', text: 'Empty folder.' })); return wrap; }
-
     const list = el('div', { class: 'list' }, entries.map((f) => {
       const trail = f.isDir ? (f.childCount ? f.childCount + ' items' : '') : fmtBytes(f.size);
       const row = el('div', { class: 'row' + (f.isDir ? ' clickable' : '') }, [
@@ -316,20 +316,77 @@
         el('div', { class: 'trail', text: trail }),
       ]);
       if (f.isDir) row.addEventListener('click', () => openDir(f.name, f.path));
-      else row.appendChild(fileActions(f));
+      row.appendChild(entryActions(f));
       return row;
     }));
+    if (!entries.length) wrap.appendChild(el('div', { class: 'empty', text: 'Empty folder — drop files here or use Upload.' }));
     wrap.appendChild(list);
+    enableDrop(list, cur);
     return wrap;
   }
 
-  function fileActions(f) {
-    const box = el('div', { style: 'display:flex;gap:6px;margin-left:8px' });
-    if (state.urlToken) {
-      box.appendChild(el('a', { class: 'btn small', text: 'Open', href: Api.fsUrl(state.urlToken, f.path, false), target: '_blank', rel: 'noopener' }));
-      box.appendChild(el('a', { class: 'btn small', text: 'Download', href: Api.fsUrl(state.urlToken, f.path, true) }));
+  function haltEvent(ev) { ev.stopPropagation(); ev.preventDefault && ev.preventDefault(); }
+  function joinPath(dir, name) { return dir.replace(/\/+$/, '') + '/' + name; }
+
+  function filesHeader(cur) {
+    const actions = el('div', { class: 'actions' });
+    const picker = el('input', { type: 'file', multiple: 'multiple', style: 'display:none' });
+    picker.addEventListener('change', () => { uploadFiles(cur, picker.files); });
+    actions.appendChild(el('button', { class: 'btn small', text: '+ Folder', onclick: async () => {
+      const n = prompt('New folder name');
+      if (n) { try { await api('createDir', { path: joinPath(cur.path, n) }); renderView($('#content')); } catch (e) { alert(e.message); } }
+    } }));
+    actions.appendChild(el('button', { class: 'btn small', text: '⬆ Upload', onclick: () => picker.click() }));
+    actions.appendChild(picker);
+    if (state.urlToken) actions.appendChild(el('a', { class: 'btn small', text: '⬇ zip', href: Api.zipDirUrl(state.urlToken, cur.path) }));
+    return el('div', { class: 'page-head' }, [el('h2', { text: 'Files' }), actions]);
+  }
+
+  function entryActions(f) {
+    const box = el('div', { style: 'display:flex;gap:6px;margin-left:8px;flex-wrap:wrap' });
+    if (state.urlToken && !f.isDir) {
+      box.appendChild(el('a', { class: 'btn small', text: 'Open', href: Api.fsUrl(state.urlToken, f.path, false), target: '_blank', rel: 'noopener', onclick: (e) => e.stopPropagation() }));
+      box.appendChild(el('a', { class: 'btn small', text: '⬇', title: 'Download', href: Api.fsUrl(state.urlToken, f.path, true), onclick: (e) => e.stopPropagation() }));
     }
+    if (state.urlToken && f.isDir) {
+      box.appendChild(el('a', { class: 'btn small', text: '⬇ zip', href: Api.zipDirUrl(state.urlToken, f.path), onclick: (e) => e.stopPropagation() }));
+    }
+    box.appendChild(el('button', { class: 'btn small', text: 'Rename', onclick: async (ev) => {
+      ev.stopPropagation();
+      const nn = prompt('Rename to', f.name);
+      if (nn && nn !== f.name) { try { await api('renameFile', { path: f.path, newName: nn }); renderView($('#content')); } catch (e) { alert(e.message); } }
+    } }));
+    box.appendChild(el('button', { class: 'btn small danger', text: 'Delete', onclick: async (ev) => {
+      ev.stopPropagation();
+      if (confirm('Delete "' + f.name + '"?')) { try { await api('deleteFiles', { paths: [f.path] }); renderView($('#content')); } catch (e) { alert(e.message); } }
+    } }));
     return box;
+  }
+
+  async function uploadFiles(cur, fileList) {
+    if (!state.urlToken) { alert('No file token — reconnect.'); return; }
+    if (!fileList || !fileList.length) return;
+    const host = $('#content');
+    const bar = el('div', { class: 'hint', style: 'margin:6px 0' });
+    if (host.firstChild) host.insertBefore(bar, host.firstChild); else host.appendChild(bar);
+    let done = 0, fail = 0;
+    for (let i = 0; i < fileList.length; i++) {
+      const f = fileList[i];
+      bar.textContent = 'Uploading ' + (i + 1) + '/' + fileList.length + ' — ' + f.name;
+      try { await Api.upload(state.urlToken, joinPath(cur.path, f.name), f); done++; }
+      catch (e) { fail++; }
+    }
+    bar.textContent = 'Uploaded ' + done + (fail ? (', ' + fail + ' failed') : '') + '.';
+    renderView(host);
+  }
+
+  function enableDrop(node, cur) {
+    node.addEventListener('dragover', (e) => { e.preventDefault(); node.classList.add('drop'); });
+    node.addEventListener('dragleave', () => node.classList.remove('drop'));
+    node.addEventListener('drop', (e) => {
+      e.preventDefault(); node.classList.remove('drop');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) uploadFiles(cur, e.dataTransfer.files);
+    });
   }
 
   function renderCrumbs() {
@@ -343,6 +400,41 @@
   }
 
   function openDir(name, path) { files.stack.push({ name: name, path: path }); renderView($('#content')); }
+
+  // ---------------------------------------------------------------- Notifications view
+
+  async function viewNotifications() {
+    const wrap = el('div', {});
+    const list = await api('notifications');
+    const clearable = (list || []).filter((n) => n.clearable).map((n) => n.key);
+    wrap.appendChild(pageHead('Notifications', clearable.length ? [
+      el('button', { class: 'btn small', text: 'Dismiss all', onclick: async () => {
+        try { await api('cancelNotifications', { keys: clearable }); renderView($('#content')); } catch (e) { alert(e.message); }
+      } }),
+    ] : []));
+    if (!list || !list.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No notifications (or the listener is not enabled in the app).' })); return wrap; }
+    const rows = el('div', { class: 'list' }, list.map((n) => {
+      const actions = el('div', { style: 'display:flex;gap:6px;margin-left:8px' });
+      if (n.canReply) actions.appendChild(el('button', { class: 'btn small', text: 'Reply', onclick: async () => {
+        const t = prompt('Reply to ' + (n.title || n.packageName));
+        if (t) { try { await api('replyNotification', { key: n.key, text: t }); } catch (e) { alert(e.message); } }
+      } }));
+      if (n.clearable) actions.appendChild(el('button', { class: 'btn small danger', text: '✕', title: 'Dismiss', onclick: async () => {
+        try { await api('cancelNotifications', { keys: [n.key] }); renderView($('#content')); } catch (e) { alert(e.message); }
+      } }));
+      return el('div', { class: 'row' }, [
+        el('div', { class: 'ico', text: '📣' }),
+        el('div', { class: 'main' }, [
+          el('div', { class: 'name', text: n.title || n.packageName }),
+          el('div', { class: 'sub', text: (n.text || '') + (n.subText ? ' · ' + n.subText : '') }),
+        ]),
+        el('div', { class: 'trail', text: shortDate(n.postTime) }),
+        actions,
+      ]);
+    }));
+    wrap.appendChild(rows);
+    return wrap;
+  }
 
   // ---------------------------------------------------------------- Notes view
 
@@ -522,7 +614,15 @@
     const wrap = el('div', {});
     if (messages.thread) return viewSmsThread(wrap);
     const convos = await api('smsConversations', { limit: 200, offset: 0 });
-    wrap.appendChild(pageHead('Messages'));
+    wrap.appendChild(pageHead('Messages', [
+      el('button', { class: 'btn small', text: '+ New', onclick: async () => {
+        const addr = prompt('Send to (phone number)');
+        if (!addr) return;
+        const body = prompt('Message');
+        if (!body) return;
+        try { await api('sendSms', { address: addr, body: body }); renderView($('#content')); } catch (e) { alert('Send failed: ' + e.message); }
+      } }),
+    ]));
     if (!convos || !convos.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No conversations (or SMS permission not granted).' })); return wrap; }
     const list = el('div', { class: 'list' }, convos.map((c) =>
       el('div', {
@@ -560,7 +660,23 @@
       ]);
     }));
     wrap.appendChild(thread);
+    wrap.appendChild(smsComposer(t.address));
     return wrap;
+  }
+
+  function smsComposer(address) {
+    const box = el('input', { class: 'input', placeholder: 'Text message', style: 'flex:1' });
+    const send = el('button', { class: 'btn primary', text: 'Send' });
+    async function doSend() {
+      const body = box.value.trim();
+      if (!body) return;
+      box.value = ''; send.disabled = true;
+      try { await api('sendSms', { address: address, body: body }); renderView($('#content')); }
+      catch (e) { send.disabled = false; alert('Send failed: ' + e.message); }
+    }
+    send.addEventListener('click', doSend);
+    box.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSend(); });
+    return el('div', { style: 'display:flex;gap:8px;margin-top:12px' }, [box, send]);
   }
 
   // ---------------------------------------------------------------- Calls view
@@ -844,6 +960,7 @@
   // Which views should re-render when a given event code arrives.
   const EVENT_VIEWS = {
     100: ['messages', 'chat'], 101: ['messages', 'chat'], 102: ['messages', 'chat'], // MESSAGE_*
+    400: ['notifications'], 401: ['notifications'], // NOTIFICATION(_DELETED)
     900: ['chat'],        // CHANNELS_UPDATED
     1200: ['device'],     // DEVICE_NAME_UPDATED
     1400: ['cast'], 1401: ['cast'],
