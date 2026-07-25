@@ -15,15 +15,21 @@ the `applicationId`/namespace stays `com.ismartcoding.plain`.
 
 ## Download
 
-Grab the latest APK from the [**Releases**](../../releases/latest) page (the
-`MWI-<version>-github.apk` asset), install it on your phone (Android 9 / API 28+; you may need to
-allow installing from unknown sources), then open the app, start the web server, and browse to the
-address it shows.
+Grab the APK from the [**Releases**](../../releases) page, install it on your phone (Android 9 / API
+28+; you may need to allow installing from unknown sources), then open the app, start the web
+server, and browse to the address it shows.
 
-Releases are produced automatically by CI when a `v*` tag is pushed. For a signature that stays
-stable across updates (so users can upgrade in place), set the repository secrets `KEYSTORE_BASE64`,
-`KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`; without them CI signs each build with a
-throwaway key.
+Two release channels, both built by CI:
+
+- **Latest build** — the [`latest`](../../releases/tag/latest) pre-release is rebuilt and
+  republished automatically on **every merge to `main`**, so a fresh `MWI-latest-github.apk` is
+  always available.
+- **Stable, versioned** — pushing a `v*` tag (e.g. `git tag v3.2.0 && git push origin v3.2.0`)
+  publishes a permanent versioned release with `MWI-<version>-github.apk`.
+
+For a signature that stays stable across updates (so users can upgrade in place), set the repository
+secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`; without them CI
+signs each build with a throwaway key.
 
 > **Status — Android app and browser dashboard both feature-complete.** Built up in the phased
 > order in [`docs/ROADMAP.md`](docs/ROADMAP.md). Done and building: the KMP foundation +
