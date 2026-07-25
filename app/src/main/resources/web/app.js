@@ -134,8 +134,11 @@
     { id: 'mirror', label: 'Screen', ico: '🖥️' },
     { id: 'chat', label: 'Chat', ico: '🗨️' },
     { id: 'cast', label: 'Cast', ico: '📺' },
+    { id: 'nearby', label: 'Nearby', ico: '📡' },
     { id: 'notifications', label: 'Alerts', ico: '📣' },
     { id: 'notes', label: 'Notes', ico: '📝' },
+    { id: 'bookmarks', label: 'Bookmarks', ico: '🔖' },
+    { id: 'feeds', label: 'Feeds', ico: '📰' },
     { id: 'apps', label: 'Apps', ico: '📦' },
   ];
 
@@ -168,7 +171,7 @@
   }
 
   // Reset per-section drill-down state so a sidebar click opens the section at its top level.
-  function resetSubnav() { files.stack = []; messages.thread = null; chat.channel = null; }
+  function resetSubnav() { files.stack = []; messages.thread = null; chat.channel = null; rss.feed = null; }
 
   function logout() {
     stopEvents();
@@ -213,8 +216,11 @@
       else if (state.view === 'mirror') node = await viewMirror();
       else if (state.view === 'chat') node = await viewChat();
       else if (state.view === 'cast') node = await viewCast();
+      else if (state.view === 'nearby') node = await viewNearby();
       else if (state.view === 'notifications') node = await viewNotifications();
       else if (state.view === 'notes') node = await viewNotes();
+      else if (state.view === 'bookmarks') node = await viewBookmarks();
+      else if (state.view === 'feeds') node = await viewFeeds();
       else if (state.view === 'apps') node = await viewApps();
       else node = el('div', { class: 'empty', text: 'Nothing here.' });
       host.innerHTML = '';
@@ -435,6 +441,114 @@
     wrap.appendChild(rows);
     return wrap;
   }
+
+  // ---------------------------------------------------------------- Nearby view
+
+  async function viewNearby() {
+    const wrap = el('div', {});
+    const devices = await api('nearbyDevices');
+    wrap.appendChild(pageHead('Nearby', [
+      el('button', { class: 'btn small', text: 'Scan', onclick: async () => { try { await api('startNearbyDiscovery'); setTimeout(() => renderView($('#content')), 1200); } catch (e) { alert(e.message); } } }),
+      el('button', { class: 'btn small', text: 'Stop', onclick: () => api('stopNearbyDiscovery').catch(() => {}) }),
+    ]));
+    wrap.appendChild(el('p', { class: 'hint', text: 'Discovers other MWI devices on the LAN via mDNS / DNS-SD.' }));
+    if (!devices || !devices.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No devices found yet. Press Scan.' })); return wrap; }
+    const list = el('div', { class: 'list' }, devices.map((d) =>
+      el('div', { class: 'row' }, [
+        el('div', { class: 'ico', text: '📡' }),
+        el('div', { class: 'main' }, [
+          el('div', { class: 'name', text: d.name || '(device)' }),
+          el('div', { class: 'sub', text: d.resolved ? (d.host + ':' + d.port) : 'resolving…' }),
+        ]),
+        el('div', { class: 'trail', text: d.resolved ? 'ready' : '' }),
+      ])));
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  // ---------------------------------------------------------------- Bookmarks view
+
+  async function viewBookmarks() {
+    const wrap = el('div', {});
+    const [groups, marks] = await Promise.all([api('bookmarkGroups'), api('bookmarks', {})]);
+    wrap.appendChild(pageHead('Bookmarks', [
+      el('button', { class: 'btn small', text: '+ Group', onclick: async () => {
+        const n = prompt('Group name');
+        if (n) { try { await api('createBookmarkGroup', { name: n }); renderView($('#content')); } catch (e) { alert(e.message); } }
+      } }),
+      el('button', { class: 'btn small primary', text: '+ Bookmark', onclick: async () => {
+        const title = prompt('Title'); if (!title) return;
+        const url = prompt('URL (https://…)'); if (!url) return;
+        try { await api('createBookmark', { title: title, url: url }); renderView($('#content')); } catch (e) { alert(e.message); }
+      } }),
+    ]));
+    const groupName = {}; (groups || []).forEach((g) => { groupName[g.id] = g.name; });
+    if (!marks || !marks.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No bookmarks yet.' })); return wrap; }
+    const list = el('div', { class: 'list' }, marks.map((b) =>
+      el('div', { class: 'row' }, [
+        el('div', { class: 'ico', text: '🔖' }),
+        el('div', { class: 'main' }, [
+          el('a', { class: 'name', href: b.url, target: '_blank', rel: 'noopener', text: b.title || b.url, style: 'text-decoration:none;color:inherit' }),
+          el('div', { class: 'sub', text: (groupName[b.groupId] ? groupName[b.groupId] + ' · ' : '') + b.url }),
+        ]),
+        el('button', { class: 'btn small danger', text: 'Delete', onclick: async () => {
+          try { await api('deleteBookmark', { id: b.id }); renderView($('#content')); } catch (e) { alert(e.message); }
+        } }),
+      ])));
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  // ---------------------------------------------------------------- Feeds (RSS) view
+
+  const rss = { feed: null };
+
+  async function viewFeeds() {
+    const wrap = el('div', {});
+    if (rss.feed) return viewFeedEntries(wrap);
+    const feeds = await api('feeds');
+    wrap.appendChild(pageHead('Feeds', [
+      el('button', { class: 'btn small primary', text: '+ Feed', onclick: async () => {
+        const url = prompt('Feed URL (RSS/Atom)'); if (!url) return;
+        const name = prompt('Name (optional)') || '';
+        try { await api('createFeed', { url: url, name: name }); renderView($('#content')); } catch (e) { alert(e.message); }
+      } }),
+    ]));
+    if (!feeds || !feeds.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No feeds. Add an RSS/Atom URL to subscribe.' })); return wrap; }
+    const list = el('div', { class: 'list' }, feeds.map((f) =>
+      el('div', { class: 'row clickable', onclick: () => { rss.feed = { id: f.id, name: f.name || f.url }; renderView($('#content')); } }, [
+        el('div', { class: 'ico', text: '📰' }),
+        el('div', { class: 'main' }, [ el('div', { class: 'name', text: f.name || f.url }), el('div', { class: 'sub', text: f.url }) ]),
+        el('button', { class: 'btn small danger', text: 'Delete', onclick: async (ev) => {
+          ev.stopPropagation();
+          try { await api('deleteFeed', { id: f.id }); renderView($('#content')); } catch (e) { alert(e.message); }
+        } }),
+      ])));
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  async function viewFeedEntries(wrap) {
+    const f = rss.feed;
+    wrap.appendChild(el('div', { class: 'page-head' }, [
+      el('button', { class: 'btn small', text: '‹ Back', onclick: () => { rss.feed = null; renderView($('#content')); } }),
+      el('h2', { text: f.name, style: 'font-size:1.1rem' }),
+    ]));
+    const entries = await api('feedEntries', { feedId: f.id, limit: 100, offset: 0 });
+    if (!entries || !entries.length) { wrap.appendChild(el('div', { class: 'empty', text: 'No entries yet — the app fetches feed content in the background.' })); return wrap; }
+    const list = el('div', { class: 'list' }, entries.map((e) =>
+      el('div', { class: 'row' }, [
+        el('div', { class: 'ico', text: e.read ? '○' : '●' }),
+        el('div', { class: 'main' }, [
+          el('a', { class: 'name', href: e.url, target: '_blank', rel: 'noopener', text: e.title || '(untitled)', style: 'text-decoration:none;color:inherit' }),
+          el('div', { class: 'sub', text: (e.author ? e.author + ' · ' : '') + shortDate(e.publishedAt) + (e.description ? ' · ' + stripHtml(e.description).slice(0, 90) : '') }),
+        ]),
+      ])));
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  function stripHtml(s) { return String(s || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim(); }
 
   // ---------------------------------------------------------------- Notes view
 
@@ -960,10 +1074,12 @@
   // Which views should re-render when a given event code arrives.
   const EVENT_VIEWS = {
     100: ['messages', 'chat'], 101: ['messages', 'chat'], 102: ['messages', 'chat'], // MESSAGE_*
+    200: ['feeds'],       // FEEDS_FETCHED
     400: ['notifications'], 401: ['notifications'], // NOTIFICATION(_DELETED)
+    600: ['bookmarks'],   // BOOKMARK_UPDATED
     900: ['chat'],        // CHANNELS_UPDATED
     1200: ['device'],     // DEVICE_NAME_UPDATED
-    1400: ['cast'], 1401: ['cast'],
+    1400: ['nearby'], 1401: ['nearby'], // NEARBY_DEVICE_FOUND/LOST
     1500: ['calls'],      // CALL_STATE_CHANGED
   };
 
