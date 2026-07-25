@@ -101,7 +101,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
   — all Room-backed via the DAOs, wired into the encrypted API.
 - ✅ Room `Converters` (chat-content sealed polymorphism + channel-members + string lists) now
   **runtime-verified** by `ConvertersTest`.
-- ⬜ RSS fetch/sync (network + readability), Notes/Docs export, standalone Compose screens for these
+- ✅ **Standalone Compose screens** (real in-app UI, no server): **Device Info**, **Notes** (list +
+  editor + delete), **Files** (browser with navigation), wired to the home grid via an
+  `expect/actual FeatureScreen` seam. Remaining tiles fall back to the placeholder.
+- ⬜ RSS fetch/sync (network + readability), Notes/Docs export, screens for the rest of the tiles
 
 ## Phase 5 — Screen mirror 🟡
 
