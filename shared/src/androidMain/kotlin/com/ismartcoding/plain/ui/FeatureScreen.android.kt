@@ -6,6 +6,7 @@ import com.ismartcoding.plain.ui.screens.AppsScreen
 import com.ismartcoding.plain.ui.screens.AudioScreen
 import com.ismartcoding.plain.ui.screens.BookmarksScreen
 import com.ismartcoding.plain.ui.screens.CallsScreen
+import com.ismartcoding.plain.ui.screens.CastScreen
 import com.ismartcoding.plain.ui.screens.ChatScreen
 import com.ismartcoding.plain.ui.screens.ContactsScreen
 import com.ismartcoding.plain.ui.screens.DeveloperScreen
@@ -51,6 +52,7 @@ actual fun FeatureScreen(feature: Feature, onBack: () -> Unit) {
         "developer" -> DeveloperScreen(onBack)
         "qr" -> QrScannerScreen(onBack)
         "chat" -> ChatScreen(onBack)
+        "cast", "dlna" -> CastScreen(onBack)
         else -> FeaturePlaceholder(feature, onBack)
     }
 }
