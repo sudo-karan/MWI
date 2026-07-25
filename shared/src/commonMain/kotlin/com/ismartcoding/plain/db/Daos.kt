@@ -41,6 +41,9 @@ interface TagDao {
     @Upsert
     suspend fun upsert(item: DTag)
 
+    @Query("DELETE FROM tags WHERE id = :id")
+    suspend fun deleteById(id: String)
+
     @Delete
     suspend fun delete(item: DTag)
 }
@@ -65,6 +68,9 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE deletedAt IS NULL ORDER BY updatedAt DESC")
     fun flowAll(): Flow<List<DNote>>
 
+    @Query("SELECT * FROM notes WHERE deletedAt IS NULL ORDER BY updatedAt DESC LIMIT :limit OFFSET :offset")
+    suspend fun page(limit: Int, offset: Int): List<DNote>
+
     @Query("SELECT * FROM notes WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): DNote?
 
@@ -73,6 +79,9 @@ interface NoteDao {
 
     @Upsert
     suspend fun upsert(item: DNote)
+
+    @Query("DELETE FROM notes WHERE id = :id")
+    suspend fun deleteById(id: String)
 
     @Delete
     suspend fun delete(item: DNote)
@@ -86,8 +95,14 @@ interface FeedDao {
     @Query("SELECT * FROM feeds WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): DFeed?
 
+    @Query("SELECT COUNT(*) FROM feeds")
+    suspend fun count(): Int
+
     @Upsert
     suspend fun upsert(item: DFeed)
+
+    @Query("DELETE FROM feeds WHERE id = :id")
+    suspend fun deleteById(id: String)
 
     @Delete
     suspend fun delete(item: DFeed)
@@ -149,6 +164,9 @@ interface BookmarkGroupDao {
     @Upsert
     suspend fun upsert(item: DBookmarkGroup)
 
+    @Query("DELETE FROM bookmark_groups WHERE id = :id")
+    suspend fun deleteById(id: String)
+
     @Delete
     suspend fun delete(item: DBookmarkGroup)
 }
@@ -158,8 +176,14 @@ interface BookmarkDao {
     @Query("SELECT * FROM bookmarks WHERE groupId = :groupId ORDER BY createdAt DESC")
     suspend fun getByGroup(groupId: String): List<DBookmark>
 
+    @Query("SELECT * FROM bookmarks ORDER BY createdAt DESC")
+    suspend fun getAll(): List<DBookmark>
+
     @Upsert
     suspend fun upsert(item: DBookmark)
+
+    @Query("DELETE FROM bookmarks WHERE id = :id")
+    suspend fun deleteById(id: String)
 
     @Delete
     suspend fun delete(item: DBookmark)

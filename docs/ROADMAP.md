@@ -94,9 +94,18 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
   RemoteInput) via `MwiNotificationListenerService`; posts/removals push a `NOTIFICATION` WS event.
 - ⬜ Contacts create/update; MMS send + attachments; live `CALL_STATE_CHANGED` push (TelephonyCallback)
 
-## Phases 5–9 ⬜
+## Phase 6 — Standalone tool backends 🟡
 
-4. Comms (cont.) — SMS/MMS, Calls (+control), Notifications (+reply), Apps
+- ✅ **Notes** (`notes`/`noteCount`/`note`/`createNote`/`updateNote`/`deleteNote`),
+  **Bookmarks** (+ groups), **Tags** (+ relations), **Pomodoro**, **Feeds/RSS** (feeds + entries CRUD)
+  — all Room-backed via the DAOs, wired into the encrypted API.
+- ✅ Room `Converters` (chat-content sealed polymorphism + channel-members + string lists) now
+  **runtime-verified** by `ConvertersTest`.
+- ⬜ RSS fetch/sync (network + readability), Notes/Docs export, standalone Compose screens for these
+
+## Phases 5, 7–9 ⬜
+
+5. Screen mirror — MediaProjection + MediaCodec H.264 + WS video + Accessibility control
 5. Screen mirror — MediaProjection + MediaCodec + WS + Accessibility control + keyboard
 6. Standalone tools — Notes, RSS, players, QR, Pomodoro, Sound Meter, tags, browsers, settings
 7. P2P + casting — BLE / Wi-Fi Aware, peer chat/channels/pairing, DLNA, mDNS
