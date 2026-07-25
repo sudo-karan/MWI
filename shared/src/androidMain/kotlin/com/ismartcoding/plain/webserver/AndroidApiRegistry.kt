@@ -19,6 +19,8 @@ import com.ismartcoding.plain.features.contact.ContactsProvider
 import com.ismartcoding.plain.features.device.DeviceInfoProvider
 import com.ismartcoding.plain.features.file.FileService
 import com.ismartcoding.plain.features.notification.MwiNotificationListenerService
+import com.ismartcoding.plain.features.screenmirror.ScreenMirror
+import com.ismartcoding.plain.features.screenmirror.ScreenMirrorControl
 import com.ismartcoding.plain.features.media.MediaProvider
 import com.ismartcoding.plain.features.media.MediaType
 import com.ismartcoding.plain.features.sms.SimProvider
@@ -179,6 +181,27 @@ object AndroidApiRegistry {
         .register("feedEntries") { v -> json.encodeToJsonElement(db.feedEntryDao().getByFeed(v.str("feedId"), MediaQuery.clampLimit(v.optInt("limit")), MediaQuery.clampOffset(v.optInt("offset")))) }
         .register("feedEntryCount") { v -> JsonPrimitive(db.feedEntryDao().countByFeed(v.str("feedId"))) }
         .register("feedEntry") { v -> json.encodeToJsonElement(db.feedEntryDao().getById(v.str("id"))) }
+        // Screen mirror
+        .register("screenMirrorState") { json.encodeToJsonElement(ScreenMirror.info()) }
+        .register("screenMirrorQuality") { JsonPrimitive(ScreenMirror.quality.value) }
+        .register("screenMirrorVideoCodec") { JsonPrimitive(ScreenMirror.codec.value) }
+        .register("screenMirrorControlEnabled") { JsonPrimitive(ScreenMirror.controlEnabled.value) }
+        .register("startScreenMirror") { ScreenMirror.requestStart(); JsonPrimitive(true) }
+        .register("stopScreenMirror") { ScreenMirror.stop(); JsonPrimitive(true) }
+        .register("updateScreenMirrorQuality") { v -> ScreenMirror.updateQuality(v.str("quality")); JsonPrimitive(ScreenMirror.quality.value) }
+        .register("sendScreenMirrorControl") { v ->
+            val control = ScreenMirrorControl(
+                type = v.str("type"),
+                x = v.optFloat("x"),
+                y = v.optFloat("y"),
+                x2 = v.optFloat("x2"),
+                y2 = v.optFloat("y2"),
+                durationMs = v.optInt("durationMs")?.toLong() ?: 0,
+                key = v.optStr("key") ?: "",
+                text = v.optStr("text") ?: "",
+            )
+            JsonPrimitive(ScreenMirror.control(control))
+        }
         // Device/App mutations (also demonstrate the WS event fan-out)
         .register("updateDeviceName") { v ->
             val name = v.str("name")
@@ -226,4 +249,7 @@ object AndroidApiRegistry {
 
     private fun JsonObject?.optBool(key: String): Boolean =
         this?.get(key)?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
+
+    private fun JsonObject?.optFloat(key: String): Float =
+        this?.get(key)?.jsonPrimitive?.content?.toFloatOrNull() ?: 0f
 }

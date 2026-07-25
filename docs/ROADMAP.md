@@ -103,9 +103,23 @@ Legend: ✅ done · 🟡 in progress · ⬜ scaffolded/planned
   **runtime-verified** by `ConvertersTest`.
 - ⬜ RSS fetch/sync (network + readability), Notes/Docs export, standalone Compose screens for these
 
-## Phases 5, 7–9 ⬜
+## Phase 5 — Screen mirror 🟡
 
-5. Screen mirror — MediaProjection + MediaCodec H.264 + WS video + Accessibility control
+- ✅ **MediaProjection capture → hardware H.264** (`ScreenMirrorEncoder`: MediaCodec + VirtualDisplay,
+  Annex-B, dynamic bitrate/keyframe), streamed as `SCREEN_MIRROR_VIDEO` WS events by
+  `ScreenMirrorService` (foreground `mediaProjection`).
+- ✅ **On-device consent flow**: web `startScreenMirror` → `MainActivity` shows the system capture
+  dialog → service starts (spec §8's "can't grant from web" model).
+- ✅ **Remote control** via `MwiAccessibilityService`: normalized tap/longpress/swipe/scroll →
+  `dispatchGesture`; Back/Home/Recents/Lock → `performGlobalAction`; typing edits the focused node
+  (SET_TEXT). Coordinate mapping unit-tested (`ScreenGeometry`).
+- ✅ Operations: `screenMirrorState`/`Quality`/`VideoCodec`/`ControlEnabled`, `startScreenMirror`,
+  `stopScreenMirror`, `updateScreenMirrorQuality`, `sendScreenMirrorControl`. Manifest declares the
+  capture service + accessibility service (+ config).
+- ⬜ Audio capture (`requestScreenMirrorAudio`), adaptive fps, per-client keyframe on join, the
+  browser-side mirror decoder/UI
+
+## Phases 7–9 ⬜
 5. Screen mirror — MediaProjection + MediaCodec + WS + Accessibility control + keyboard
 6. Standalone tools — Notes, RSS, players, QR, Pomodoro, Sound Meter, tags, browsers, settings
 7. P2P + casting — BLE / Wi-Fi Aware, peer chat/channels/pairing, DLNA, mDNS
