@@ -138,6 +138,10 @@ class HttpServerManager(
                     host = "0.0.0.0"
                 }
                 runningLimit = 1000
+                // Force HTTP/1.1. With TLS, Ktor-Netty otherwise advertises h2 via ALPN, but Netty's
+                // HTTP/2 doesn't serve cleanly on Android's TLS stack — browsers then negotiate h2 and
+                // get zero bytes back (ERR_EMPTY_RESPONSE). HTTP/1.1 is correct for this LAN console.
+                enableHttp2 = false
             },
             module = { installModule() },
         ).also { it.start(wait = false) }
